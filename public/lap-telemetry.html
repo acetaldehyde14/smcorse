@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lap Telemetry - SM CORSE</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #0066cc;
+            --accent: #00aaff;
+            --success: #28a745;
+            --danger: #dc3545;
+            --warning: #fd7e14;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Rajdhani', sans-serif; background: #0a0f1c; color: #e0e0e0; min-height: 100vh; }
+
+        header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 0.75rem 2rem; background: #111827; border-bottom: 1px solid #1f2937;
+        }
+        .logo-container { display: flex; align-items: center; gap: 0.75rem; cursor: pointer; }
+        .logo-img { height: 36px; width: auto; filter: brightness(0) invert(1); }
+        .back-btn {
+            padding: 0.5rem 1.2rem; border: 1px solid #374151; background: transparent;
+            color: #9ca3af; font-family: 'Montserrat', sans-serif; font-weight: 600;
+            font-size: 0.8rem; cursor: pointer; text-transform: uppercase; letter-spacing: 1px;
+            border-radius: 4px; text-decoration: none; transition: all 0.2s;
+        }
+        .back-btn:hover { background: #1f2937; color: white; }
+
+        .lap-banner {
+            background: linear-gradient(135deg, #111827, #1e3a5f);
+            padding: 1rem 2rem; display: flex; justify-content: space-between;
+            align-items: center; flex-wrap: wrap; gap: 1rem; border-bottom: 1px solid #1f2937;
+        }
+        .lap-info-group { display: flex; gap: 2rem; flex-wrap: wrap; }
+        .lap-info-item label { display: block; font-size: 0.7rem; color: #6b7280; text-transform: uppercase; letter-spacing: 1px; }
+        .lap-info-item span { font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: 1rem; color: white; }
+        .lap-time-display { font-family: 'Montserrat', sans-serif; font-weight: 800; font-size: 1.8rem; color: var(--success); }
+
+        .content { display: flex; height: calc(100vh - 120px); }
+
+        .sidebar {
+            width: 280px; min-width: 280px; background: #111827;
+            border-right: 1px solid #1f2937; overflow-y: auto; padding: 0.75rem;
+        }
+        .panel { background: #0d1117; border-radius: 6px; padding: 0.75rem; margin-bottom: 0.75rem; border: 1px solid #1f2937; }
+        .panel h4 { font-family: 'Montserrat', sans-serif; font-size: 0.75rem; color: #6b7280; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.5rem; }
+        #trackMapCanvas { width: 100%; height: 220px; }
+
+        .cursor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
+        .cursor-item { background: #1f2937; padding: 0.4rem 0.6rem; border-radius: 4px; }
+        .cursor-item label { display: block; font-size: 0.65rem; color: #6b7280; text-transform: uppercase; }
+        .cursor-item .val { font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: 0.95rem; }
+        .val-speed { color: var(--accent); }
+        .val-throttle { color: var(--success); }
+        .val-brake { color: var(--danger); }
+        .val-steering { color: var(--warning); }
+        .val-rpm { color: #a78bfa; }
+        .val-gear { color: #f9fafb; }
+
+        .charts-area { flex: 1; overflow-y: auto; padding: 0.75rem; }
+        .chart-row { background: #111827; border-radius: 6px; margin-bottom: 0.5rem; border: 1px solid #1f2937; position: relative; }
+        .chart-label {
+            position: absolute; top: 0.4rem; left: 0.6rem;
+            font-family: 'Montserrat', sans-serif; font-size: 0.7rem; font-weight: 700;
+            color: #6b7280; text-transform: uppercase; letter-spacing: 1px; z-index: 2;
+        }
+        .chart-canvas { width: 100%; display: block; cursor: crosshair; }
+
+        .loading-overlay {
+            position: fixed; inset: 0; background: #0a0f1c;
+            display: flex; align-items: center; justify-content: center; z-index: 100;
+            flex-direction: column; gap: 1rem;
+        }
+        .loading-overlay h2 { font-family: 'Montserrat', sans-serif; color: var(--accent); }
+        .spinner { width: 40px; height: 40px; border: 3px solid #1f2937; border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .no-data { display: flex; align-items: center; justify-content: center; height: 100%; flex-direction: column; gap: 1rem; color: #6b7280; text-align: center; padding: 2rem; }
+        .no-data h2 { font-family: 'Montserrat', sans-serif; color: #9ca3af; }
+
+        .legend { display: flex; gap: 1rem; margin-top: 0.3rem; }
+        .legend-item { display: flex; align-items: center; gap: 0.3rem; font-size: 0.75rem; color: #9ca3af; }
+        .legend-dot { width: 10px; height: 3px; border-radius: 1px; }
+
+        @media (max-width: 900px) {
+            .content { flex-direction: column; height: auto; }
+            .sidebar { width: 100%; min-width: unset; border-right: none; border-bottom: 1px solid #1f2937; }
+            #trackMapCanvas { height: 160px; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo-container" onclick="window.location.href='/dashboard'">
+            <img src="/img/sm_corse_only_blue.png" alt="SM CORSE" class="logo-img">
+        </div>
+        <a class="back-btn" id="backBtn" href="/sessions.html">Back to Sessions</a>
+    </header>
+
+    <div class="lap-banner" id="lapBanner">
+        <div class="lap-info-group">
+            <div class="lap-info-item"><label>Track</label><span id="infoTrack">Loading...</span></div>
+            <div class="lap-info-item"><label>Car</label><span id="infoCar">-</span></div>
+            <div class="lap-info-item"><label>Lap</label><span id="infoLap">-</span></div>
+        </div>
+        <div class="lap-time-display" id="infoTime">--:--.---</div>
+    </div>
+
+    <div class="content">
+        <div class="sidebar">
+            <div class="panel">
+                <h4>Track Map</h4>
+                <canvas id="trackMapCanvas"></canvas>
+            </div>
+            <div class="panel">
+                <h4>At Cursor</h4>
+                <div class="cursor-grid">
+                    <div class="cursor-item"><label>Speed</label><div class="val val-speed" id="curSpeed">--</div></div>
+                    <div class="cursor-item"><label>Gear</label><div class="val val-gear" id="curGear">-</div></div>
+                    <div class="cursor-item"><label>Throttle</label><div class="val val-throttle" id="curThrottle">--</div></div>
+                    <div class="cursor-item"><label>Brake</label><div class="val val-brake" id="curBrake">--</div></div>
+                    <div class="cursor-item"><label>Steering</label><div class="val val-steering" id="curSteering">--</div></div>
+                    <div class="cursor-item"><label>RPM</label><div class="val val-rpm" id="curRPM">--</div></div>
+                    <div class="cursor-item"><label>Distance</label><div class="val" id="curDist">--</div></div>
+                    <div class="cursor-item"><label>Dist %</label><div class="val" id="curDistPct">--</div></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="charts-area" id="chartsArea">
+            <div class="chart-row"><div class="chart-label">Speed (km/h)</div><canvas class="chart-canvas" id="speedChart" height="160"></canvas></div>
+            <div class="chart-row">
+                <div class="chart-label">Pedals
+                    <span class="legend" style="display:inline-flex;margin-left:0.5rem;">
+                        <span class="legend-item"><span class="legend-dot" style="background:#28a745"></span>Throttle</span>
+                        <span class="legend-item"><span class="legend-dot" style="background:#dc3545"></span>Brake</span>
+                    </span>
+                </div>
+                <canvas class="chart-canvas" id="pedalChart" height="140"></canvas>
+            </div>
+            <div class="chart-row"><div class="chart-label">Steering (rad)</div><canvas class="chart-canvas" id="steerChart" height="120"></canvas></div>
+            <div class="chart-row">
+                <div class="chart-label">RPM
+                    <span class="legend" style="display:inline-flex;margin-left:0.5rem;">
+                        <span class="legend-item"><span class="legend-dot" style="background:#a78bfa"></span>RPM</span>
+                        <span class="legend-item"><span class="legend-dot" style="background:#6b7280"></span>Gear</span>
+                    </span>
+                </div>
+                <canvas class="chart-canvas" id="rpmChart" height="140"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+        <h2>Loading Telemetry...</h2>
+    </div>
+
+<script>
+const urlParams = new URLSearchParams(window.location.search);
+const lapId = urlParams.get('lapId');
+const sessionId = urlParams.get('sessionId');
+if (sessionId) document.getElementById('backBtn').href = `/session-details.html?id=${sessionId}`;
+if (!lapId) { document.getElementById('loadingOverlay').innerHTML = '<div class="no-data"><h2>No Lap Selected</h2><p>Go back and select a lap to view telemetry.</p></div>'; }
+
+let telemetryData = null;
+let cursorIndex = -1;
+const DPR = window.devicePixelRatio || 1;
+
+function setupCanvas(canvas, height) {
+    const w = canvas.parentElement.getBoundingClientRect().width;
+    canvas.width = w * DPR;
+    canvas.height = height * DPR;
+    canvas.style.height = height + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.scale(DPR, DPR);
+    return { ctx, w, h: height };
+}
+
+function drawChart(canvasId, data, key, color, height, opts = {}) {
+    const canvas = document.getElementById(canvasId);
+    const { ctx, w, h } = setupCanvas(canvas, height);
+    const pad = { top: 28, right: 12, bottom: 22, left: 50 };
+    const cw = w - pad.left - pad.right;
+    const ch = h - pad.top - pad.bottom;
+    ctx.clearRect(0, 0, w, h);
+
+    let minVal, maxVal;
+    if (opts.min !== undefined) { minVal = opts.min; maxVal = opts.max; }
+    else {
+        const vals = data.map(d => d[key]).filter(v => v !== undefined && isFinite(v));
+        if (vals.length === 0) return;
+        minVal = Math.min(...vals); maxVal = Math.max(...vals);
+        const range = maxVal - minVal || 1;
+        minVal -= range * 0.05; maxVal += range * 0.05;
+    }
+
+    // Grid
+    ctx.strokeStyle = '#1f2937'; ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+        const y = pad.top + (ch * i / 4);
+        ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(w - pad.right, y); ctx.stroke();
+        const val = maxVal - (maxVal - minVal) * (i / 4);
+        ctx.fillStyle = '#4b5563'; ctx.font = '10px Montserrat,sans-serif'; ctx.textAlign = 'right';
+        ctx.fillText(Math.round(val), pad.left - 6, y + 3);
+    }
+
+    // X-axis labels
+    const maxDist = data.length > 0 ? (data[data.length - 1].dist || 0) : 0;
+    ctx.fillStyle = '#374151'; ctx.font = '9px Rajdhani,sans-serif'; ctx.textAlign = 'center';
+    for (let i = 0; i <= 5; i++) {
+        const x = pad.left + (cw * i / 5);
+        ctx.fillText((maxDist * i / 5 / 1000).toFixed(1) + 'km', x, h - 4);
+    }
+
+    function drawTrace(k, c, lw, yMin, yMax) {
+        ctx.beginPath(); ctx.strokeStyle = c; ctx.lineWidth = lw;
+        let started = false;
+        for (let i = 0; i < data.length; i++) {
+            const v = data[i][k]; if (v === undefined || !isFinite(v)) continue;
+            const x = pad.left + (i / (data.length - 1)) * cw;
+            const y = pad.top + ch - ((v - yMin) / (yMax - yMin || 1)) * ch;
+            if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+    }
+
+    // Secondary trace
+    if (opts.secondKey) {
+        const sMin = opts.secondMin !== undefined ? opts.secondMin : minVal;
+        const sMax = opts.secondMax !== undefined ? opts.secondMax : maxVal;
+        drawTrace(opts.secondKey, opts.secondColor || '#666', 1.5, sMin, sMax);
+    }
+
+    // Gear as stepped bars (special handling)
+    if (opts.gearKey) {
+        ctx.fillStyle = 'rgba(107,114,128,0.15)';
+        const gears = data.map(d => d[opts.gearKey]).filter(v => v !== undefined);
+        const maxGear = Math.max(...gears, 1);
+        for (let i = 0; i < data.length; i++) {
+            const g = data[i][opts.gearKey]; if (g === undefined) continue;
+            const x = pad.left + (i / (data.length - 1)) * cw;
+            const barH = (g / maxGear) * ch;
+            ctx.fillRect(x, pad.top + ch - barH, Math.max(1, cw / data.length), barH);
+        }
+        // Gear number at cursor
+        if (cursorIndex >= 0 && data[cursorIndex] && data[cursorIndex][opts.gearKey] !== undefined) {
+            const ci = cursorIndex;
+            const cx = pad.left + (ci / (data.length - 1)) * cw;
+            ctx.fillStyle = '#9ca3af'; ctx.font = 'bold 14px Montserrat,sans-serif'; ctx.textAlign = 'center';
+            const gVal = data[ci][opts.gearKey];
+            ctx.fillText(gVal === 0 ? 'N' : gVal === -1 ? 'R' : gVal, cx, pad.top + 14);
+        }
+    }
+
+    // Main trace
+    drawTrace(key, color, 1.5, minVal, maxVal);
+
+    // Cursor
+    if (cursorIndex >= 0 && cursorIndex < data.length) {
+        const cx = pad.left + (cursorIndex / (data.length - 1)) * cw;
+        ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath(); ctx.moveTo(cx, pad.top); ctx.lineTo(cx, pad.top + ch); ctx.stroke();
+        ctx.setLineDash([]);
+        const v = data[cursorIndex][key];
+        if (v !== undefined && isFinite(v)) {
+            const y = pad.top + ch - ((v - minVal) / (maxVal - minVal || 1)) * ch;
+            ctx.beginPath(); ctx.arc(cx, y, 3.5, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill();
+        }
+    }
+}
+
+function drawTrackMap(data) {
+    const canvas = document.getElementById('trackMapCanvas');
+    const pEl = canvas.parentElement;
+    const w = pEl.clientWidth - 24;
+    const h = 220;
+    canvas.width = w * DPR; canvas.height = h * DPR;
+    canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.scale(DPR, DPR); ctx.clearRect(0, 0, w, h);
+
+    const hasCoords = data.some(d => d.lat && d.lon && d.lat !== 0 && d.lon !== 0);
+    if (!hasCoords) {
+        ctx.fillStyle = '#374151'; ctx.font = '11px Rajdhani,sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText('Track map requires .ibt file with GPS data', w / 2, h / 2);
+        return;
+    }
+
+    const pts = data.filter(d => d.lat && d.lon && d.lat !== 0 && d.lon !== 0);
+    const lats = pts.map(d => d.lat), lons = pts.map(d => d.lon);
+    const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+    const minLon = Math.min(...lons), maxLon = Math.max(...lons);
+    const rLat = maxLat - minLat || 1, rLon = maxLon - minLon || 1;
+    const p = 15, mW = w - p * 2, mH = h - p * 2;
+    const sc = Math.min(mW / rLon, mH / rLat);
+    const oX = p + (mW - rLon * sc) / 2, oY = p + (mH - rLat * sc) / 2;
+    const toX = lon => oX + (lon - minLon) * sc;
+    const toY = lat => oY + mH - (lat - minLat) * sc;
+
+    const speeds = pts.map(d => d.speed || 0);
+    const minS = Math.min(...speeds), maxS = Math.max(...speeds);
+    function spdCol(s) {
+        const t = (s - minS) / (maxS - minS || 1);
+        const r = t < 0.5 ? 220 : Math.round(220 - 180 * ((t - 0.5) / 0.5));
+        const g = t < 0.5 ? Math.round(180 * (t / 0.5)) : 220;
+        const b = t > 0.7 ? Math.round(200 * ((t - 0.7) / 0.3)) : 50;
+        return `rgb(${r},${g},${b})`;
+    }
+
+    // Track shadow
+    ctx.beginPath(); ctx.strokeStyle = '#1f2937'; ctx.lineWidth = 7;
+    pts.forEach((d, i) => { i === 0 ? ctx.moveTo(toX(d.lon), toY(d.lat)) : ctx.lineTo(toX(d.lon), toY(d.lat)); });
+    ctx.stroke();
+
+    // Speed-colored trace
+    for (let i = 1; i < pts.length; i++) {
+        ctx.beginPath(); ctx.strokeStyle = spdCol(pts[i].speed || 0); ctx.lineWidth = 3;
+        ctx.moveTo(toX(pts[i - 1].lon), toY(pts[i - 1].lat));
+        ctx.lineTo(toX(pts[i].lon), toY(pts[i].lat)); ctx.stroke();
+    }
+
+    // S/F marker
+    if (pts.length > 0) {
+        ctx.beginPath(); ctx.arc(toX(pts[0].lon), toY(pts[0].lat), 4, 0, Math.PI * 2);
+        ctx.fillStyle = '#fff'; ctx.fill();
+        ctx.fillStyle = '#6b7280'; ctx.font = '9px Montserrat,sans-serif'; ctx.textAlign = 'left';
+        ctx.fillText('S/F', toX(pts[0].lon) + 8, toY(pts[0].lat) + 3);
+    }
+
+    // Cursor dot
+    if (cursorIndex >= 0 && cursorIndex < data.length && data[cursorIndex].lat && data[cursorIndex].lon) {
+        const cx = toX(data[cursorIndex].lon), cy = toY(data[cursorIndex].lat);
+        ctx.beginPath(); ctx.arc(cx, cy, 6, 0, Math.PI * 2); ctx.fillStyle = 'white'; ctx.fill();
+        ctx.beginPath(); ctx.arc(cx, cy, 3, 0, Math.PI * 2); ctx.fillStyle = '#00aaff'; ctx.fill();
+    }
+
+    // Speed legend
+    ctx.fillStyle = '#4b5563'; ctx.font = '9px Rajdhani,sans-serif'; ctx.textAlign = 'left';
+    ctx.fillText(Math.round(minS) + ' km/h', 4, h - 4);
+    ctx.textAlign = 'right';
+    ctx.fillText(Math.round(maxS) + ' km/h', w - 4, h - 4);
+    const grd = ctx.createLinearGradient(w / 4, 0, w * 3 / 4, 0);
+    grd.addColorStop(0, spdCol(minS)); grd.addColorStop(0.5, spdCol((minS + maxS) / 2)); grd.addColorStop(1, spdCol(maxS));
+    ctx.fillStyle = grd; ctx.fillRect(w / 4, h - 10, w / 2, 4);
+}
+
+function renderAll() {
+    if (!telemetryData || !telemetryData.samples || telemetryData.samples.length === 0) return;
+    const d = telemetryData.samples;
+    drawChart('speedChart', d, 'speed', '#00aaff', 160);
+    drawChart('pedalChart', d, 'throttle', '#28a745', 140, { min: 0, max: 100, secondKey: 'brake', secondColor: '#dc3545', secondMin: 0, secondMax: 100 });
+    drawChart('steerChart', d, 'steering', '#fd7e14', 120);
+    drawChart('rpmChart', d, 'rpm', '#a78bfa', 140, { gearKey: 'gear' });
+    drawTrackMap(d);
+}
+
+function getIdx(e, canvas) {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const padL = 50, padR = 12, cw = rect.width - padL - padR;
+    const r = (x - padL) / cw;
+    if (r < 0 || r > 1 || !telemetryData) return -1;
+    return Math.round(r * (telemetryData.samples.length - 1));
+}
+
+function updateCursor() {
+    if (!telemetryData || cursorIndex < 0) return;
+    const d = telemetryData.samples[cursorIndex];
+    if (!d) return;
+    document.getElementById('curSpeed').textContent = (d.speed || 0).toFixed(0) + ' km/h';
+    document.getElementById('curGear').textContent = d.gear === 0 ? 'N' : d.gear === -1 ? 'R' : (d.gear || '-');
+    document.getElementById('curThrottle').textContent = (d.throttle || 0).toFixed(0) + '%';
+    document.getElementById('curBrake').textContent = (d.brake || 0).toFixed(0) + '%';
+    document.getElementById('curSteering').textContent = (d.steering || 0).toFixed(2);
+    document.getElementById('curRPM').textContent = (d.rpm || 0).toFixed(0);
+    document.getElementById('curDist').textContent = ((d.dist || 0) / 1000).toFixed(2) + ' km';
+    document.getElementById('curDistPct').textContent = ((d.distPct || 0) * 100).toFixed(1) + '%';
+}
+
+['speedChart', 'pedalChart', 'steerChart', 'rpmChart'].forEach(id => {
+    const c = document.getElementById(id);
+    c.addEventListener('mousemove', e => {
+        const idx = getIdx(e, c);
+        if (idx >= 0 && idx !== cursorIndex) { cursorIndex = idx; renderAll(); updateCursor(); }
+    });
+    c.addEventListener('mouseleave', () => { cursorIndex = -1; renderAll(); });
+});
+
+async function loadTelemetry() {
+    if (!lapId) return;
+    try {
+        const resp = await fetch(`/api/telemetry/laps/${lapId}/telemetry`);
+        if (!resp.ok) throw new Error('Failed to load');
+        const result = await resp.json();
+
+        document.getElementById('infoTrack').textContent = result.lap.track || 'Unknown Track';
+        document.getElementById('infoCar').textContent = result.lap.car || 'Unknown Car';
+        document.getElementById('infoLap').textContent = result.lap.lap_number ? '#' + result.lap.lap_number : '-';
+        document.getElementById('infoTime').textContent = formatTime(result.lap.lap_time);
+
+        if (result.telemetry && result.telemetry.samples && result.telemetry.samples.length > 0) {
+            telemetryData = result.telemetry;
+        } else if (result.telemetry && result.telemetry.telemetry && result.telemetry.telemetry.length > 0) {
+            telemetryData = { samples: result.telemetry.telemetry };
+        }
+
+        document.getElementById('loadingOverlay').style.display = 'none';
+
+        if (telemetryData && telemetryData.samples && telemetryData.samples.length > 0) {
+            renderAll();
+            window.addEventListener('resize', renderAll);
+        } else {
+            document.getElementById('chartsArea').innerHTML = '<div class="no-data"><h2>No Telemetry Data</h2><p>Detailed telemetry is available for .ibt files only.<br>Upload a full session .ibt file to see speed, inputs, and track map.</p></div>';
+        }
+    } catch (err) {
+        document.getElementById('loadingOverlay').innerHTML = '<div class="no-data"><h2>Error Loading Telemetry</h2><p>' + err.message + '</p></div>';
+    }
+}
+
+function formatTime(s) {
+    if (!s || s <= 0) return '--:--.---';
+    return Math.floor(s / 60) + ':' + (s % 60).toFixed(3).padStart(6, '0');
+}
+
+loadTelemetry();
+</script>
+</body>
+</html>

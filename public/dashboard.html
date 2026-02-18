@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - SM CORSE</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #0066cc;
+            --primary-dark: #004d99;
+            --accent: #00aaff;
+            --dark: #0a0f1c;
+            --surface: #f8f9fa;
+            --text: #2c3e50;
+            --light: #ffffff;
+            --border: #e0e6ed;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            background: var(--surface);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem 0;
+            margin-bottom: 3rem;
+            border-bottom: 2px solid var(--border);
+            background: white;
+            margin: -2rem -2rem 3rem -2rem;
+            padding: 1.5rem 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .logo-img {
+            height: 50px;
+            width: auto;
+        }
+
+        .user-section {
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+        }
+
+        .user-info {
+            text-align: right;
+        }
+
+        .user-name {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 1.1rem;
+            color: var(--primary);
+            font-weight: 700;
+        }
+
+        .user-email {
+            font-size: 0.9rem;
+            color: var(--text);
+            opacity: 0.7;
+        }
+
+        .logout-btn {
+            padding: 0.7rem 1.8rem;
+            border: 2px solid var(--primary);
+            background: transparent;
+            color: var(--primary);
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+            border-radius: 4px;
+        }
+
+        .logout-btn:hover {
+            background: var(--primary);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 102, 204, 0.3);
+        }
+
+        /* Welcome Section */
+        .welcome {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            padding: 3rem;
+            border-radius: 12px;
+            margin-bottom: 3rem;
+            color: white;
+            box-shadow: 0 4px 20px rgba(0, 102, 204, 0.2);
+        }
+
+        .welcome h1 {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            font-weight: 800;
+        }
+
+        .welcome p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        /* Stats Cards */
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 3rem;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 2rem;
+            text-align: center;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border-left: 4px solid var(--primary);
+            transition: all 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 16px rgba(0, 102, 204, 0.15);
+        }
+
+        .stat-number {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 2.5rem;
+            color: var(--primary);
+            font-weight: 900;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            font-size: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text);
+            font-weight: 600;
+        }
+
+        /* Feature Cards */
+        .dashboard-content {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 2rem;
+        }
+
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 2rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border-left: 4px solid var(--primary);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary), var(--accent));
+            transform: scaleX(0);
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover::before {
+            transform: scaleX(1);
+        }
+
+        .card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 8px 24px rgba(0, 102, 204, 0.2);
+        }
+
+        .card h3 {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 1.5rem;
+            color: var(--primary);
+            margin-bottom: 1rem;
+            font-weight: 700;
+        }
+
+        .card p {
+            line-height: 1.6;
+            color: var(--text);
+            font-size: 1.05rem;
+        }
+
+        @media (max-width: 968px) {
+            .stats {
+                grid-template-columns: 1fr;
+            }
+
+            .dashboard-content {
+                grid-template-columns: 1fr;
+            }
+
+            .user-section {
+                flex-direction: column;
+                align-items: flex-end;
+                gap: 1rem;
+            }
+
+            .welcome h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo-container">
+                <img src="/img/sm_corse_only_blue.png" alt="SM CORSE" class="logo-img">
+            </div>
+            <div class="user-section">
+                <div class="user-info">
+                    <div class="user-name" id="userName">Loading...</div>
+                    <div class="user-email" id="userEmail"></div>
+                </div>
+                <button class="logout-btn" onclick="logout()">Logout</button>
+            </div>
+        </header>
+
+        <main>
+            <div class="welcome">
+                <h1>Welcome Back, <span id="welcomeName"></span>!</h1>
+                <p>SM CORSE - iRacing Endurance Team Platform</p>
+            </div>
+
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-number">🏁</div>
+                    <div class="stat-label">Ready to Race</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">24/7</div>
+                    <div class="stat-label">Platform Uptime</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">∞</div>
+                    <div class="stat-label">Potential</div>
+                </div>
+            </div>
+
+            <div class="dashboard-content">
+                <div class="card" onclick="window.location.href='/assistant.html'">
+                    <h3>🏁 AI Race Engineer</h3>
+                    <p>Chat with your expert AI race engineer for iRacing & Le Mans Ultimate. Get instant answers about setups, driving technique, FFB settings, and race strategy.</p>
+                </div>
+                <div class="card" onclick="window.location.href='/telemetry.html'">
+                    <h3>📊 Telemetry Upload</h3>
+                    <p>Upload your iRacing telemetry files (.ibt, .blap, .olap) to analyze lap times and get AI-powered coaching feedback.</p>
+                </div>
+                <div class="card" onclick="window.location.href='/sessions.html'">
+                    <h3>🏁 My Sessions</h3>
+                    <p>View your practice sessions, lap times, and track your improvement over time across different tracks and cars.</p>
+                </div>
+                <div class="card" onclick="window.location.href='/coaching.html'">
+                    <h3>🎓 AI Coaching</h3>
+                    <p>Get personalized coaching advice powered by AI. Compare your laps against reference times and improve your driving technique.</p>
+                </div>
+                <div class="card" onclick="window.location.href='/library.html'">
+                    <h3>📚 Lap Library</h3>
+                    <p>Browse reference laps from coaches and fast drivers. Compare your performance against the best lap times.</p>
+                </div>
+                <div class="card" onclick="window.location.href='/team.html'">
+                    <h3>👥 Team Management</h3>
+                    <p>Manage team roster, plan driver rotations for endurance races, and coordinate practice sessions.</p>
+                </div>
+                <div class="card" onclick="window.location.href='/strategy.html'">
+                    <h3>⚙️ Race Strategy</h3>
+                    <p>Calculate fuel usage, tire wear, and pit stop strategy for endurance races. Plan your stints and driver swaps.</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Load user data
+        async function loadUserData() {
+            try {
+                const response = await fetch('/api/user');
+                if (response.ok) {
+                    const user = await response.json();
+                    document.getElementById('userName').textContent = user.username || user.name;
+                    document.getElementById('userEmail').textContent = user.email;
+                    document.getElementById('welcomeName').textContent = user.username || user.name;
+                } else {
+                    window.location.href = '/';
+                }
+            } catch (error) {
+                console.error('Error loading user data:', error);
+                window.location.href = '/';
+            }
+        }
+
+        // Logout function
+        async function logout() {
+            try {
+                const response = await fetch('/api/logout', {
+                    method: 'POST',
+                });
+
+                if (response.ok) {
+                    window.location.href = '/';
+                }
+            } catch (error) {
+                console.error('Error logging out:', error);
+            }
+        }
+
+        // Load user data on page load
+        loadUserData();
+    </script>
+</body>
+</html>

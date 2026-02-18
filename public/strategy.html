@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Race Strategy - SM CORSE</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #0066cc;
+            --primary-dark: #004d99;
+            --accent: #00aaff;
+            --success: #28a745;
+            --danger: #dc3545;
+            --warning: #ffc107;
+            --dark: #0a0f1c;
+            --surface: #f8f9fa;
+            --text: #2c3e50;
+            --light: #ffffff;
+            --border: #e0e6ed;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            background: var(--surface);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem 0;
+            margin-bottom: 3rem;
+            border-bottom: 2px solid var(--border);
+            background: white;
+            margin: -2rem -2rem 3rem -2rem;
+            padding: 1.5rem 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            cursor: pointer;
+        }
+
+        .logo-img {
+            height: 50px;
+            width: auto;
+        }
+
+        .back-btn {
+            padding: 0.7rem 1.8rem;
+            border: 2px solid var(--primary);
+            background: transparent;
+            color: var(--primary);
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+            border-radius: 4px;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .back-btn:hover {
+            background: var(--primary);
+            color: white;
+        }
+
+        /* Page Title */
+        .page-header {
+            margin-bottom: 2rem;
+        }
+
+        .page-header h1 {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 2.5rem;
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+            font-weight: 800;
+        }
+
+        .page-header p {
+            font-size: 1.2rem;
+            color: var(--text);
+            opacity: 0.8;
+        }
+
+        /* Content Grid */
+        .content-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        /* Calculator Section */
+        .calculator-section {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .calculator-section h3 {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 1.5rem;
+            color: var(--primary);
+            margin-bottom: 1.5rem;
+            font-weight: 700;
+        }
+
+        .input-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .input-group label {
+            display: block;
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .input-group input,
+        .input-group select {
+            width: 100%;
+            padding: 0.8rem;
+            border: 2px solid var(--border);
+            border-radius: 4px;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1rem;
+            color: var(--text);
+            background: white;
+            transition: all 0.3s ease;
+        }
+
+        .input-group input:focus,
+        .input-group select:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .input-hint {
+            font-size: 0.85rem;
+            color: var(--text);
+            opacity: 0.6;
+            margin-top: 0.3rem;
+        }
+
+        .calculate-btn {
+            width: 100%;
+            padding: 1rem;
+            background: var(--primary);
+            border: none;
+            color: white;
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+            margin-top: 1rem;
+        }
+
+        .calculate-btn:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 102, 204, 0.3);
+        }
+
+        /* Results Section */
+        .results-section {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .results-section h3 {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 1.5rem;
+            color: var(--primary);
+            margin-bottom: 1.5rem;
+            font-weight: 700;
+        }
+
+        .result-card {
+            padding: 1.5rem;
+            background: var(--surface);
+            border-radius: 8px;
+            border-left: 4px solid var(--primary);
+            margin-bottom: 1rem;
+        }
+
+        .result-label {
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 600;
+            color: var(--text);
+            opacity: 0.7;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.5rem;
+        }
+
+        .result-value {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 2rem;
+            color: var(--primary);
+            font-weight: 900;
+        }
+
+        .result-value.large {
+            font-size: 2.5rem;
+        }
+
+        .empty-results {
+            text-align: center;
+            padding: 3rem 2rem;
+            color: var(--text);
+            opacity: 0.7;
+        }
+
+        /* Pit Strategy Table */
+        .strategy-table {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .strategy-table h3 {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 1.5rem;
+            color: var(--primary);
+            margin-bottom: 1.5rem;
+            font-weight: 700;
+        }
+
+        .pit-stop {
+            display: grid;
+            grid-template-columns: auto 1fr 1fr 1fr;
+            gap: 1rem;
+            padding: 1rem;
+            background: var(--surface);
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            align-items: center;
+        }
+
+        .pit-number {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 1.5rem;
+            color: var(--primary);
+            font-weight: 700;
+            min-width: 80px;
+        }
+
+        .pit-detail {
+            text-align: center;
+        }
+
+        .pit-detail-label {
+            font-size: 0.85rem;
+            color: var(--text);
+            opacity: 0.7;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.3rem;
+        }
+
+        .pit-detail-value {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 1.1rem;
+            color: var(--text);
+            font-weight: 700;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            border-bottom: 2px solid var(--border);
+        }
+
+        .tab {
+            padding: 1rem 2rem;
+            background: transparent;
+            border: none;
+            color: var(--text);
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .tab.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+
+        .tab:hover {
+            color: var(--primary);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @media (max-width: 968px) {
+            .content-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .page-header h1 {
+                font-size: 2rem;
+            }
+
+            .pit-stop {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo-container" onclick="window.location.href='/dashboard'">
+                <img src="/img/sm_corse_only_blue.png" alt="SM CORSE" class="logo-img">
+            </div>
+            <a href="/dashboard" class="back-btn">← Back to Dashboard</a>
+        </header>
+
+        <main>
+            <div class="page-header">
+                <h1>Race Strategy</h1>
+                <p>Calculate fuel, tire wear, and pit stop strategy</p>
+            </div>
+
+            <div class="tabs">
+                <button class="tab active" data-tab="fuel">Fuel Calculator</button>
+                <button class="tab" data-tab="tire">Tire Strategy</button>
+                <button class="tab" data-tab="pit">Pit Planning</button>
+            </div>
+
+            <!-- Fuel Calculator Tab -->
+            <div class="tab-content active" id="fuel">
+                <div class="content-grid">
+                    <div class="calculator-section">
+                        <h3>Fuel Calculator</h3>
+
+                        <div class="input-group">
+                            <label>Track</label>
+                            <select id="fuelTrack">
+                                <option value="">Select track...</option>
+                                <option value="spa">Spa-Francorchamps</option>
+                                <option value="monza">Monza</option>
+                                <option value="silverstone">Silverstone</option>
+                                <option value="lemans">Le Mans</option>
+                                <option value="nurburgring">Nurburgring GP</option>
+                            </select>
+                        </div>
+
+                        <div class="input-group">
+                            <label>Car</label>
+                            <select id="fuelCar">
+                                <option value="">Select car...</option>
+                                <option value="bmw-m4-gt3">BMW M4 GT3</option>
+                                <option value="ferrari-296-gt3">Ferrari 296 GT3</option>
+                                <option value="porsche-992-gt3">Porsche 992 GT3 R</option>
+                                <option value="audi-r8-lms">Audi R8 LMS GT3</option>
+                            </select>
+                        </div>
+
+                        <div class="input-group">
+                            <label>Race Duration (hours)</label>
+                            <input type="number" id="raceDuration" placeholder="24" step="0.5" min="0.5">
+                            <div class="input-hint">Enter race length in hours</div>
+                        </div>
+
+                        <div class="input-group">
+                            <label>Average Lap Time</label>
+                            <input type="text" id="avgLapTime" placeholder="2:17.500">
+                            <div class="input-hint">Format: MM:SS.sss</div>
+                        </div>
+
+                        <div class="input-group">
+                            <label>Fuel Per Lap (liters)</label>
+                            <input type="number" id="fuelPerLap" placeholder="2.8" step="0.1" min="0">
+                            <div class="input-hint">Average fuel consumption per lap</div>
+                        </div>
+
+                        <div class="input-group">
+                            <label>Tank Capacity (liters)</label>
+                            <input type="number" id="tankCapacity" placeholder="120" step="1" min="0">
+                            <div class="input-hint">Maximum fuel tank capacity</div>
+                        </div>
+
+                        <button class="calculate-btn" onclick="calculateFuel()">Calculate Strategy</button>
+                    </div>
+
+                    <div class="results-section">
+                        <h3>Strategy Results</h3>
+
+                        <div class="empty-results">
+                            <p>Enter race parameters and click Calculate to see fuel strategy</p>
+                        </div>
+
+                        <!-- Results will appear here -->
+                        <div id="fuelResults" style="display: none;">
+                            <div class="result-card">
+                                <div class="result-label">Total Laps</div>
+                                <div class="result-value" id="totalLaps">--</div>
+                            </div>
+                            <div class="result-card">
+                                <div class="result-label">Pit Stops Required</div>
+                                <div class="result-value large" id="pitStops">--</div>
+                            </div>
+                            <div class="result-card">
+                                <div class="result-label">Laps Per Stint</div>
+                                <div class="result-value" id="lapsPerStint">--</div>
+                            </div>
+                            <div class="result-card">
+                                <div class="result-label">Total Fuel Needed</div>
+                                <div class="result-value" id="totalFuel">-- L</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tire Strategy Tab -->
+            <div class="tab-content" id="tire">
+                <div class="content-grid">
+                    <div class="calculator-section">
+                        <h3>Tire Wear Calculator</h3>
+
+                        <div class="input-group">
+                            <label>Track</label>
+                            <select id="tireTrack">
+                                <option value="">Select track...</option>
+                                <option value="spa">Spa-Francorchamps</option>
+                                <option value="monza">Monza</option>
+                                <option value="silverstone">Silverstone</option>
+                            </select>
+                        </div>
+
+                        <div class="input-group">
+                            <label>Tire Compound</label>
+                            <select id="tireCompound">
+                                <option value="soft">Soft (High Grip, Fast Wear)</option>
+                                <option value="medium" selected>Medium (Balanced)</option>
+                                <option value="hard">Hard (Low Grip, Slow Wear)</option>
+                            </select>
+                        </div>
+
+                        <div class="input-group">
+                            <label>Average Lap Time</label>
+                            <input type="text" id="tireLapTime" placeholder="2:17.500">
+                        </div>
+
+                        <div class="input-group">
+                            <label>Track Temperature (°C)</label>
+                            <input type="number" id="trackTemp" placeholder="28" step="1">
+                            <div class="input-hint">Higher temps increase tire wear</div>
+                        </div>
+
+                        <div class="input-group">
+                            <label>Fuel Load (kg)</label>
+                            <input type="number" id="fuelLoad" placeholder="80" step="1">
+                            <div class="input-hint">Heavier load increases wear</div>
+                        </div>
+
+                        <button class="calculate-btn">Calculate Tire Life</button>
+                    </div>
+
+                    <div class="results-section">
+                        <h3>Tire Life Estimation</h3>
+
+                        <div class="empty-results">
+                            <p>Coming soon: Tire degradation analysis and optimal change intervals</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pit Planning Tab -->
+            <div class="tab-content" id="pit">
+                <div class="strategy-table">
+                    <h3>Pit Stop Schedule</h3>
+                    <p style="color: var(--text); opacity: 0.8; margin-bottom: 2rem;">
+                        Based on 24h race at Spa-Francorchamps with BMW M4 GT3
+                    </p>
+
+                    <div class="pit-stop">
+                        <div class="pit-number">Lap 43</div>
+                        <div class="pit-detail">
+                            <div class="pit-detail-label">Driver</div>
+                            <div class="pit-detail-value">M. Rossi → A. Verdi</div>
+                        </div>
+                        <div class="pit-detail">
+                            <div class="pit-detail-label">Fuel</div>
+                            <div class="pit-detail-value">115 L</div>
+                        </div>
+                        <div class="pit-detail">
+                            <div class="pit-detail-label">Tires</div>
+                            <div class="pit-detail-value">All New</div>
+                        </div>
+                    </div>
+
+                    <div class="pit-stop">
+                        <div class="pit-number">Lap 86</div>
+                        <div class="pit-detail">
+                            <div class="pit-detail-label">Driver</div>
+                            <div class="pit-detail-value">A. Verdi → S. Klein</div>
+                        </div>
+                        <div class="pit-detail">
+                            <div class="pit-detail-label">Fuel</div>
+                            <div class="pit-detail-value">110 L</div>
+                        </div>
+                        <div class="pit-detail">
+                            <div class="pit-detail-label">Tires</div>
+                            <div class="pit-detail-value">No Change</div>
+                        </div>
+                    </div>
+
+                    <div class="pit-stop">
+                        <div class="pit-number">Lap 128</div>
+                        <div class="pit-detail">
+                            <div class="pit-detail-label">Driver</div>
+                            <div class="pit-detail-value">S. Klein → D. Martinez</div>
+                        </div>
+                        <div class="pit-detail">
+                            <div class="pit-detail-label">Fuel</div>
+                            <div class="pit-detail-value">115 L</div>
+                        </div>
+                        <div class="pit-detail">
+                            <div class="pit-detail-label">Tires</div>
+                            <div class="pit-detail-value">All New</div>
+                        </div>
+                    </div>
+
+                    <button class="calculate-btn" style="margin-top: 2rem;">Export Strategy</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Tab switching
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const targetTab = tab.dataset.tab;
+
+                // Update tabs
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+
+                // Update content
+                document.querySelectorAll('.tab-content').forEach(content => {
+                    content.classList.remove('active');
+                });
+                document.getElementById(targetTab).classList.add('active');
+            });
+        });
+
+        // Fuel calculation
+        function calculateFuel() {
+            const raceDuration = parseFloat(document.getElementById('raceDuration').value);
+            const lapTimeStr = document.getElementById('avgLapTime').value;
+            const fuelPerLap = parseFloat(document.getElementById('fuelPerLap').value);
+            const tankCapacity = parseFloat(document.getElementById('tankCapacity').value);
+
+            if (!raceDuration || !lapTimeStr || !fuelPerLap || !tankCapacity) {
+                alert('Please fill in all fields');
+                return;
+            }
+
+            // Parse lap time (MM:SS.sss)
+            const parts = lapTimeStr.split(':');
+            const lapTimeSeconds = parseFloat(parts[0]) * 60 + parseFloat(parts[1]);
+
+            // Calculate total laps
+            const raceSeconds = raceDuration * 3600;
+            const totalLaps = Math.floor(raceSeconds / lapTimeSeconds);
+
+            // Calculate pit stops
+            const lapsPerStint = Math.floor(tankCapacity / fuelPerLap);
+            const pitStops = Math.ceil(totalLaps / lapsPerStint) - 1;
+
+            // Calculate total fuel
+            const totalFuel = totalLaps * fuelPerLap;
+
+            // Display results
+            document.getElementById('totalLaps').textContent = totalLaps;
+            document.getElementById('pitStops').textContent = pitStops;
+            document.getElementById('lapsPerStint').textContent = lapsPerStint;
+            document.getElementById('totalFuel').textContent = totalFuel.toFixed(1) + ' L';
+
+            document.querySelector('.empty-results').style.display = 'none';
+            document.getElementById('fuelResults').style.display = 'block';
+        }
+
+        // Load strategy templates
+        async function loadStrategyTemplates() {
+            try {
+                const response = await fetch('/api/strategy/templates');
+                if (response.ok) {
+                    const templates = await response.json();
+                    // TODO: Populate templates
+                }
+            } catch (error) {
+                console.error('Error loading templates:', error);
+            }
+        }
+
+        // Load templates on page load
+        loadStrategyTemplates();
+    </script>
+</body>
+</html>

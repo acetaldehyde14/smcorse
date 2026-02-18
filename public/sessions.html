@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Sessions - SM CORSE</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #0066cc;
+            --primary-dark: #004d99;
+            --accent: #00aaff;
+            --success: #28a745;
+            --danger: #dc3545;
+            --warning: #ffc107;
+            --dark: #0a0f1c;
+            --surface: #f8f9fa;
+            --text: #2c3e50;
+            --light: #ffffff;
+            --border: #e0e6ed;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            background: var(--surface);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem 0;
+            margin-bottom: 3rem;
+            border-bottom: 2px solid var(--border);
+            background: white;
+            margin: -2rem -2rem 3rem -2rem;
+            padding: 1.5rem 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            cursor: pointer;
+        }
+
+        .logo-img {
+            height: 50px;
+            width: auto;
+        }
+
+        .back-btn {
+            padding: 0.7rem 1.8rem;
+            border: 2px solid var(--primary);
+            background: transparent;
+            color: var(--primary);
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+            border-radius: 4px;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .back-btn:hover {
+            background: var(--primary);
+            color: white;
+        }
+
+        /* Page Title */
+        .page-header {
+            margin-bottom: 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .page-header h1 {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 2.5rem;
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+            font-weight: 800;
+        }
+
+        .page-header p {
+            font-size: 1.2rem;
+            color: var(--text);
+            opacity: 0.8;
+        }
+
+        /* Filters */
+        .filters {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            margin-bottom: 2rem;
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .filter-group {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .filter-group label {
+            display: block;
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .filter-group select {
+            width: 100%;
+            padding: 0.7rem;
+            border: 2px solid var(--border);
+            border-radius: 4px;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1rem;
+            color: var(--text);
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .filter-group select:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        /* Stats Summary */
+        .stats-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border-left: 4px solid var(--primary);
+            text-align: center;
+        }
+
+        .stat-value {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 2rem;
+            color: var(--primary);
+            font-weight: 900;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text);
+            font-weight: 600;
+        }
+
+        /* Sessions Table */
+        .sessions-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+
+        .session-card {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .session-card:last-child {
+            border-bottom: none;
+        }
+
+        .session-card:hover {
+            background: var(--surface);
+            transform: translateX(5px);
+        }
+
+        .session-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .session-track {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 1.3rem;
+            color: var(--primary);
+            font-weight: 700;
+        }
+
+        .session-date {
+            font-size: 0.9rem;
+            color: var(--text);
+            opacity: 0.7;
+        }
+
+        .session-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+        }
+
+        .detail-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+        }
+
+        .detail-label {
+            font-size: 0.85rem;
+            color: var(--text);
+            opacity: 0.7;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .detail-value {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 1.1rem;
+            color: var(--text);
+            font-weight: 600;
+        }
+
+        .best-lap {
+            color: var(--success);
+            font-weight: 700;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--text);
+            opacity: 0.7;
+        }
+
+        .empty-state h3 {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .upload-btn {
+            margin-top: 1.5rem;
+            padding: 1rem 2rem;
+            background: var(--primary);
+            border: none;
+            color: white;
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .upload-btn:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 102, 204, 0.3);
+        }
+
+        @media (max-width: 768px) {
+            .page-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .page-header h1 {
+                font-size: 2rem;
+            }
+
+            .session-details {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo-container" onclick="window.location.href='/dashboard'">
+                <img src="/img/sm_corse_only_blue.png" alt="SM CORSE" class="logo-img">
+            </div>
+            <a href="/dashboard" class="back-btn">← Back to Dashboard</a>
+        </header>
+
+        <main>
+            <div class="page-header">
+                <div>
+                    <h1>My Sessions</h1>
+                    <p>Track your practice sessions and lap times</p>
+                </div>
+            </div>
+
+            <div class="filters">
+                <div class="filter-group">
+                    <label>Track</label>
+                    <select id="trackFilter">
+                        <option value="all">All Tracks</option>
+                        <option value="spa">Spa-Francorchamps</option>
+                        <option value="monza">Monza</option>
+                        <option value="silverstone">Silverstone</option>
+                        <option value="nurburgring">Nurburgring GP</option>
+                        <option value="watkins">Watkins Glen</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Car</label>
+                    <select id="carFilter">
+                        <option value="all">All Cars</option>
+                        <option value="bmw-m4-gt3">BMW M4 GT3</option>
+                        <option value="ferrari-296-gt3">Ferrari 296 GT3</option>
+                        <option value="porsche-992-gt3">Porsche 992 GT3 R</option>
+                        <option value="audi-r8-lms">Audi R8 LMS GT3</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Date Range</label>
+                    <select id="dateFilter">
+                        <option value="all">All Time</option>
+                        <option value="week">Last 7 Days</option>
+                        <option value="month">Last 30 Days</option>
+                        <option value="quarter">Last 3 Months</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="stats-summary">
+                <div class="stat-card">
+                    <div class="stat-value">0</div>
+                    <div class="stat-label">Total Sessions</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">0</div>
+                    <div class="stat-label">Total Laps</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">0</div>
+                    <div class="stat-label">Tracks Driven</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">--:--</div>
+                    <div class="stat-label">Best Lap</div>
+                </div>
+            </div>
+
+            <div class="sessions-container">
+                <div class="empty-state">
+                    <h3>No Sessions Yet</h3>
+                    <p>Upload your first telemetry file to start tracking your sessions and lap times.</p>
+                    <a href="/telemetry.html" class="upload-btn">Upload Telemetry</a>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Filter functionality
+        const trackFilter = document.getElementById('trackFilter');
+        const carFilter = document.getElementById('carFilter');
+        const dateFilter = document.getElementById('dateFilter');
+
+        trackFilter.addEventListener('change', applyFilters);
+        carFilter.addEventListener('change', applyFilters);
+        dateFilter.addEventListener('change', applyFilters);
+
+        function applyFilters() {
+            // TODO: Implement filtering logic when data is available
+            console.log('Filters applied:', {
+                track: trackFilter.value,
+                car: carFilter.value,
+                date: dateFilter.value
+            });
+        }
+
+        // Load sessions from API
+        async function loadSessions() {
+            try {
+                const response = await fetch('/api/telemetry/sessions');
+                if (response.ok) {
+                    const data = await response.json();
+                    displaySessions(data.sessions || []);
+                }
+            } catch (error) {
+                console.error('Error loading sessions:', error);
+            }
+        }
+
+        function displaySessions(sessions) {
+            const container = document.querySelector('.sessions-container');
+            const emptyState = container.querySelector('.empty-state');
+
+            if (!sessions || sessions.length === 0) {
+                emptyState.style.display = 'block';
+                return;
+            }
+
+            // Hide empty state
+            emptyState.style.display = 'none';
+
+            // Update stats
+            const totalSessions = sessions.length;
+            const totalLaps = sessions.reduce((sum, s) => sum + parseInt(s.lap_count || 0), 0);
+            const uniqueTracks = new Set(sessions.map(s => s.track_name)).size;
+            const allBestLaps = sessions.map(s => parseFloat(s.best_lap)).filter(l => l > 0);
+            const bestLap = allBestLaps.length > 0 ? Math.min(...allBestLaps) : 0;
+
+            document.querySelector('.stats-summary .stat-card:nth-child(1) .stat-value').textContent = totalSessions;
+            document.querySelector('.stats-summary .stat-card:nth-child(2) .stat-value').textContent = totalLaps;
+            document.querySelector('.stats-summary .stat-card:nth-child(3) .stat-value').textContent = uniqueTracks;
+            document.querySelector('.stats-summary .stat-card:nth-child(4) .stat-value').textContent =
+                bestLap > 0 ? formatLapTime(bestLap) : '--:--';
+
+            // Create session cards
+            sessions.forEach(session => {
+                const card = document.createElement('div');
+                card.className = 'session-card';
+                card.onclick = () => window.location.href = `/session-details.html?id=${session.id}`;
+
+                const date = new Date(session.created_at);
+                const formattedDate = date.toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit'
+                });
+
+                card.innerHTML = `
+                    <div class="session-header">
+                        <div class="session-track">${session.track_name || 'Unknown Track'}</div>
+                        <div class="session-date">${formattedDate}</div>
+                    </div>
+                    <div class="session-details">
+                        <div class="detail-item">
+                            <div class="detail-label">Car</div>
+                            <div class="detail-value">${session.car_name || 'Unknown Car'}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Best Lap</div>
+                            <div class="detail-value best-lap">${session.best_lap > 0 ? formatLapTime(session.best_lap) : '--:--'}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Total Laps</div>
+                            <div class="detail-value">${session.lap_count || 0}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Session Type</div>
+                            <div class="detail-value">${session.session_type || 'Practice'}</div>
+                        </div>
+                    </div>
+                `;
+
+                container.appendChild(card);
+            });
+        }
+
+        function formatLapTime(seconds) {
+            if (!seconds || seconds <= 0) return '--:--';
+            const mins = Math.floor(seconds / 60);
+            const secs = (seconds % 60).toFixed(3);
+            return `${mins}:${secs.padStart(6, '0')}`;
+        }
+
+        // Load sessions on page load
+        loadSessions();
+    </script>
+</body>
+</html>

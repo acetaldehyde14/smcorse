@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lap Library - SM CORSE</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #0066cc;
+            --primary-dark: #004d99;
+            --accent: #00aaff;
+            --success: #28a745;
+            --danger: #dc3545;
+            --warning: #ffc107;
+            --dark: #0a0f1c;
+            --surface: #f8f9fa;
+            --text: #2c3e50;
+            --light: #ffffff;
+            --border: #e0e6ed;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            background: var(--surface);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem 0;
+            margin-bottom: 3rem;
+            border-bottom: 2px solid var(--border);
+            background: white;
+            margin: -2rem -2rem 3rem -2rem;
+            padding: 1.5rem 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            cursor: pointer;
+        }
+
+        .logo-img {
+            height: 50px;
+            width: auto;
+        }
+
+        .back-btn {
+            padding: 0.7rem 1.8rem;
+            border: 2px solid var(--primary);
+            background: transparent;
+            color: var(--primary);
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+            border-radius: 4px;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .back-btn:hover {
+            background: var(--primary);
+            color: white;
+        }
+
+        /* Page Title */
+        .page-header {
+            margin-bottom: 2rem;
+        }
+
+        .page-header h1 {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 2.5rem;
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+            font-weight: 800;
+        }
+
+        .page-header p {
+            font-size: 1.2rem;
+            color: var(--text);
+            opacity: 0.8;
+        }
+
+        /* Search and Filters */
+        .search-section {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            margin-bottom: 2rem;
+        }
+
+        .search-bar {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .search-input {
+            flex: 1;
+            padding: 0.8rem 1.2rem;
+            border: 2px solid var(--border);
+            border-radius: 4px;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .search-btn {
+            padding: 0.8rem 2rem;
+            background: var(--primary);
+            border: none;
+            color: white;
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 600;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+
+        .search-btn:hover {
+            background: var(--primary-dark);
+        }
+
+        .filters {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .filter-group {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .filter-group label {
+            display: block;
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .filter-group select {
+            width: 100%;
+            padding: 0.7rem;
+            border: 2px solid var(--border);
+            border-radius: 4px;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1rem;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .filter-group select:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        /* Lap Cards Grid */
+        .lap-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .lap-card {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border-left: 4px solid var(--primary);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .lap-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 24px rgba(0, 102, 204, 0.2);
+        }
+
+        .lap-track {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 1.3rem;
+            color: var(--primary);
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .lap-car {
+            font-size: 1rem;
+            color: var(--text);
+            opacity: 0.8;
+            margin-bottom: 1rem;
+        }
+
+        .lap-time {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 2rem;
+            color: var(--success);
+            font-weight: 900;
+            margin-bottom: 1rem;
+        }
+
+        .lap-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .lap-driver {
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .lap-date {
+            font-size: 0.9rem;
+            color: var(--text);
+            opacity: 0.6;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.3rem 0.8rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 1rem;
+        }
+
+        .badge-team {
+            background: rgba(0, 102, 204, 0.1);
+            color: var(--primary);
+        }
+
+        .badge-coach {
+            background: rgba(40, 167, 69, 0.1);
+            color: var(--success);
+        }
+
+        .badge-pro {
+            background: rgba(255, 193, 7, 0.2);
+            color: #d39e00;
+        }
+
+        .download-btn {
+            width: 100%;
+            padding: 0.8rem;
+            background: var(--primary);
+            border: none;
+            color: white;
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 600;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+            margin-top: 1rem;
+        }
+
+        .download-btn:hover {
+            background: var(--primary-dark);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--text);
+            opacity: 0.7;
+        }
+
+        .empty-state h3 {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        @media (max-width: 768px) {
+            .search-bar {
+                flex-direction: column;
+            }
+
+            .page-header h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo-container" onclick="window.location.href='/dashboard'">
+                <img src="/img/sm_corse_only_blue.png" alt="SM CORSE" class="logo-img">
+            </div>
+            <a href="/dashboard" class="back-btn">← Back to Dashboard</a>
+        </header>
+
+        <main>
+            <div class="page-header">
+                <h1>Lap Library</h1>
+                <p>Browse your best laps and reference times by track and car</p>
+            </div>
+
+            <div class="search-section">
+                <div class="search-bar">
+                    <input type="text" class="search-input" placeholder="Search by track, car, or driver..." id="searchInput">
+                    <button class="search-btn">Search</button>
+                </div>
+
+                <div class="filters">
+                    <div class="filter-group">
+                        <label>Track</label>
+                        <select id="trackFilter">
+                            <option value="all">All Tracks</option>
+                            <option value="spa">Spa-Francorchamps</option>
+                            <option value="monza">Monza</option>
+                            <option value="silverstone">Silverstone</option>
+                            <option value="nurburgring">Nurburgring GP</option>
+                            <option value="watkins">Watkins Glen</option>
+                            <option value="lemans">Le Mans</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Car</label>
+                        <select id="carFilter">
+                            <option value="all">All Cars</option>
+                            <option value="bmw-m4-gt3">BMW M4 GT3</option>
+                            <option value="ferrari-296-gt3">Ferrari 296 GT3</option>
+                            <option value="porsche-992-gt3">Porsche 992 GT3 R</option>
+                            <option value="audi-r8-lms">Audi R8 LMS GT3</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Source</label>
+                        <select id="sourceFilter">
+                            <option value="all">All Sources</option>
+                            <option value="my">My Laps</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lap-grid" id="lapGrid">
+                <div class="empty-state" style="grid-column:1/-1;">
+                    <h3>Loading laps...</h3>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const searchInput = document.getElementById('searchInput');
+        const trackFilter = document.getElementById('trackFilter');
+        const carFilter = document.getElementById('carFilter');
+        const sourceFilter = document.getElementById('sourceFilter');
+        const lapGrid = document.getElementById('lapGrid');
+        let allLaps = [];
+
+        trackFilter.addEventListener('change', renderLaps);
+        carFilter.addEventListener('change', renderLaps);
+        sourceFilter.addEventListener('change', renderLaps);
+        searchInput.addEventListener('input', debounce(renderLaps, 300));
+
+        function debounce(func, wait) {
+            let timeout;
+            return function(...args) { clearTimeout(timeout); timeout = setTimeout(() => func(...args), wait); };
+        }
+
+        function formatLapTime(s) {
+            if (!s || s <= 0) return '--:--.---';
+            return Math.floor(s / 60) + ':' + (s % 60).toFixed(3).padStart(6, '0');
+        }
+
+        function renderLaps() {
+            let filtered = [...allLaps];
+            const query = searchInput.value.toLowerCase();
+            const track = trackFilter.value;
+            const car = carFilter.value;
+
+            if (query) {
+                filtered = filtered.filter(l =>
+                    (l.track_name || '').toLowerCase().includes(query) ||
+                    (l.car_name || '').toLowerCase().includes(query)
+                );
+            }
+            if (track !== 'all') {
+                filtered = filtered.filter(l => (l.track_name || '').toLowerCase().includes(track));
+            }
+            if (car !== 'all') {
+                filtered = filtered.filter(l => (l.car_name || '').toLowerCase().replace(/[\s()]/g, '').includes(car.replace(/-/g, '')));
+            }
+
+            if (filtered.length === 0) {
+                lapGrid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">
+                    <h3>No Laps Found</h3>
+                    <p>Upload telemetry files to see your laps here.</p>
+                </div>`;
+                return;
+            }
+
+            // Group by track + car, show best lap per combination
+            const grouped = {};
+            filtered.forEach(lap => {
+                const key = (lap.track_name || 'Unknown') + '|' + (lap.car_name || 'Unknown');
+                if (!grouped[key] || lap.lap_time < grouped[key].best.lap_time) {
+                    if (!grouped[key]) grouped[key] = { best: lap, laps: [] };
+                    else grouped[key].best = lap;
+                }
+                if (!grouped[key]) grouped[key] = { best: lap, laps: [] };
+                grouped[key].laps.push(lap);
+            });
+
+            let html = '';
+            for (const [key, group] of Object.entries(grouped)) {
+                const best = group.best;
+                const date = new Date(best.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                const hasIBT = best.ibt_file_path ? true : false;
+
+                html += `
+                <div class="lap-card" onclick="window.location.href='/lap-telemetry.html?lapId=${best.id}&sessionId=${best.session_id}'">
+                    <span class="badge badge-team">My Lap</span>
+                    <div class="lap-track">${best.track_name || 'Unknown Track'}</div>
+                    <div class="lap-car">${best.car_name || 'Unknown Car'}</div>
+                    <div class="lap-time">${formatLapTime(best.lap_time)}</div>
+                    <div class="lap-meta">
+                        <span class="lap-driver">Lap ${best.lap_number || '?'} ${hasIBT ? '(IBT)' : '(BLAP)'}</span>
+                        <span class="lap-date">${date}</span>
+                    </div>
+                    ${group.laps.length > 1 ? `<div style="margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid var(--border);font-size:0.9rem;color:var(--text);opacity:0.7;">${group.laps.length} total laps at this track/car</div>` : ''}
+                </div>`;
+            }
+
+            lapGrid.innerHTML = html;
+        }
+
+        async function loadLibrary() {
+            try {
+                const response = await fetch('/api/telemetry/all-laps');
+                if (!response.ok) throw new Error('Failed to load');
+                const data = await response.json();
+                allLaps = data.laps || [];
+                populateFilters();
+                renderLaps();
+            } catch (error) {
+                console.error('Error loading library:', error);
+                lapGrid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">
+                    <h3>No Laps Yet</h3>
+                    <p>Upload .ibt or .blap telemetry files to build your lap library.</p>
+                </div>`;
+            }
+        }
+
+        function populateFilters() {
+            const tracks = [...new Set(allLaps.map(l => l.track_name).filter(Boolean))];
+            const cars = [...new Set(allLaps.map(l => l.car_name).filter(Boolean))];
+
+            // Update track filter
+            trackFilter.innerHTML = '<option value="all">All Tracks</option>';
+            tracks.forEach(t => {
+                const opt = document.createElement('option');
+                opt.value = t.toLowerCase().split(' ')[0];
+                opt.textContent = t;
+                trackFilter.appendChild(opt);
+            });
+
+            // Update car filter
+            carFilter.innerHTML = '<option value="all">All Cars</option>';
+            cars.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.toLowerCase().replace(/[\s()]/g, '');
+                opt.textContent = c;
+                carFilter.appendChild(opt);
+            });
+        }
+
+        loadLibrary();
+    </script>
+</body>
+</html>

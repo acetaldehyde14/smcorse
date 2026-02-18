@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Coaching - SM CORSE</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #0066cc;
+            --primary-dark: #004d99;
+            --accent: #00aaff;
+            --success: #28a745;
+            --danger: #dc3545;
+            --warning: #ffc107;
+            --dark: #0a0f1c;
+            --surface: #f8f9fa;
+            --text: #2c3e50;
+            --light: #ffffff;
+            --border: #e0e6ed;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            background: var(--surface);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem 0;
+            margin-bottom: 3rem;
+            border-bottom: 2px solid var(--border);
+            background: white;
+            margin: -2rem -2rem 3rem -2rem;
+            padding: 1.5rem 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            cursor: pointer;
+        }
+
+        .logo-img {
+            height: 50px;
+            width: auto;
+        }
+
+        .back-btn {
+            padding: 0.7rem 1.8rem;
+            border: 2px solid var(--primary);
+            background: transparent;
+            color: var(--primary);
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+            border-radius: 4px;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .back-btn:hover {
+            background: var(--primary);
+            color: white;
+        }
+
+        /* Page Title */
+        .page-header {
+            margin-bottom: 2rem;
+        }
+
+        .page-header h1 {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 2.5rem;
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+            font-weight: 800;
+        }
+
+        .page-header p {
+            font-size: 1.2rem;
+            color: var(--text);
+            opacity: 0.8;
+        }
+
+        /* Content Layout */
+        .content-grid {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        /* Lap Selector */
+        .lap-selector {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            height: fit-content;
+        }
+
+        .lap-selector h3 {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 1.3rem;
+            color: var(--primary);
+            margin-bottom: 1.5rem;
+            font-weight: 700;
+        }
+
+        .lap-selection {
+            margin-bottom: 2rem;
+        }
+
+        .lap-selection label {
+            display: block;
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .lap-selection select {
+            width: 100%;
+            padding: 0.8rem;
+            border: 2px solid var(--border);
+            border-radius: 4px;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1rem;
+            color: var(--text);
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .lap-selection select:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .compare-btn {
+            width: 100%;
+            padding: 1rem;
+            background: var(--primary);
+            border: none;
+            color: white;
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+
+        .compare-btn:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 102, 204, 0.3);
+        }
+
+        .compare-btn:disabled {
+            background: var(--border);
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .lap-info {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            background: var(--surface);
+            border-radius: 4px;
+            border-left: 4px solid var(--primary);
+        }
+
+        .lap-info-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+        }
+
+        .lap-info-label {
+            font-weight: 600;
+            color: var(--text);
+            opacity: 0.7;
+        }
+
+        .lap-info-value {
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        /* Coaching Panel */
+        .coaching-panel {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .coaching-panel h3 {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 1.3rem;
+            color: var(--primary);
+            margin-bottom: 1.5rem;
+            font-weight: 700;
+        }
+
+        .empty-coaching {
+            text-align: center;
+            padding: 3rem 2rem;
+            color: var(--text);
+            opacity: 0.7;
+        }
+
+        .empty-coaching h4 {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+        }
+
+        /* Analysis Sections */
+        .analysis-section {
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            background: var(--surface);
+            border-radius: 8px;
+            border-left: 4px solid var(--accent);
+        }
+
+        .analysis-section h4 {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 1.1rem;
+            color: var(--primary);
+            margin-bottom: 1rem;
+            font-weight: 700;
+        }
+
+        .analysis-section p {
+            line-height: 1.8;
+            color: var(--text);
+            margin-bottom: 0.5rem;
+        }
+
+        .improvement-tag {
+            display: inline-block;
+            padding: 0.3rem 0.8rem;
+            background: var(--warning);
+            color: white;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-right: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .improvement-tag.success {
+            background: var(--success);
+        }
+
+        /* Comparison Chart Placeholder */
+        .chart-container {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+
+        .chart-placeholder {
+            padding: 4rem 2rem;
+            background: var(--surface);
+            border: 2px dashed var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            opacity: 0.6;
+        }
+
+        @media (max-width: 968px) {
+            .content-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .page-header h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo-container" onclick="window.location.href='/dashboard'">
+                <img src="/img/sm_corse_only_blue.png" alt="SM CORSE" class="logo-img">
+            </div>
+            <a href="/dashboard" class="back-btn">← Back to Dashboard</a>
+        </header>
+
+        <main>
+            <div class="page-header">
+                <h1>AI Coaching</h1>
+                <p>Get personalized feedback and improve your lap times</p>
+            </div>
+
+            <div class="content-grid">
+                <div class="lap-selector">
+                    <h3>Compare Laps</h3>
+
+                    <div class="lap-selection">
+                        <label>Your Lap</label>
+                        <select id="yourLapSelect">
+                            <option value="">Loading laps...</option>
+                        </select>
+                    </div>
+
+                    <div class="lap-selection">
+                        <label>Reference Lap (compare against)</label>
+                        <select id="refLapSelect">
+                            <option value="">Loading laps...</option>
+                        </select>
+                    </div>
+
+                    <button class="compare-btn" id="compareBtn" disabled>Analyze Laps</button>
+
+                    <div class="lap-info">
+                        <h4 style="font-family: 'Montserrat', sans-serif; margin-bottom: 0.8rem; color: var(--primary);">Lap Details</h4>
+                        <div class="lap-info-item">
+                            <span class="lap-info-label">Track:</span>
+                            <span class="lap-info-value">-</span>
+                        </div>
+                        <div class="lap-info-item">
+                            <span class="lap-info-label">Car:</span>
+                            <span class="lap-info-value">-</span>
+                        </div>
+                        <div class="lap-info-item">
+                            <span class="lap-info-label">Time Delta:</span>
+                            <span class="lap-info-value">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="coaching-panel">
+                    <h3>AI Analysis</h3>
+
+                    <div class="empty-coaching">
+                        <h4>Select laps to begin analysis</h4>
+                        <p>Choose your lap and a reference lap to get personalized coaching feedback powered by AI.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h3 style="font-family: 'Montserrat', sans-serif; color: var(--primary); margin-bottom: 1.5rem;">Speed Trace Comparison</h3>
+                <div class="chart-placeholder">
+                    Speed trace comparison chart will appear here once laps are selected
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const yourLapSelect = document.getElementById('yourLapSelect');
+        const refLapSelect = document.getElementById('refLapSelect');
+        const compareBtn = document.getElementById('compareBtn');
+        const coachingPanel = document.querySelector('.coaching-panel');
+        let allLaps = [];
+
+        yourLapSelect.addEventListener('change', onLapChange);
+        refLapSelect.addEventListener('change', onLapChange);
+
+        function onLapChange() {
+            compareBtn.disabled = !yourLapSelect.value || !refLapSelect.value;
+            updateLapInfo();
+        }
+
+        function updateLapInfo() {
+            const yourLap = allLaps.find(l => l.id == yourLapSelect.value);
+            const refLap = allLaps.find(l => l.id == refLapSelect.value);
+
+            const infoItems = document.querySelectorAll('.lap-info-value');
+            infoItems[0].textContent = yourLap ? yourLap.track_name : '-';
+            infoItems[1].textContent = yourLap ? yourLap.car_name : '-';
+
+            if (yourLap && refLap) {
+                const delta = yourLap.lap_time - refLap.lap_time;
+                const sign = delta >= 0 ? '+' : '';
+                infoItems[2].textContent = sign + delta.toFixed(3) + 's';
+                infoItems[2].style.color = delta > 0 ? '#dc3545' : '#28a745';
+            } else {
+                infoItems[2].textContent = '-';
+                infoItems[2].style.color = '';
+            }
+        }
+
+        function formatLapTime(s) {
+            if (!s || s <= 0) return '--:--.---';
+            return Math.floor(s / 60) + ':' + (s % 60).toFixed(3).padStart(6, '0');
+        }
+
+        compareBtn.addEventListener('click', async () => {
+            const yourLap = allLaps.find(l => l.id == yourLapSelect.value);
+            const refLap = allLaps.find(l => l.id == refLapSelect.value);
+            if (!yourLap || !refLap) return;
+
+            compareBtn.disabled = true;
+            compareBtn.textContent = 'Analyzing...';
+
+            coachingPanel.innerHTML = `
+                <h3>AI Analysis</h3>
+                <div style="text-align:center;padding:3rem;">
+                    <div style="font-size:2rem;margin-bottom:1rem;">🔄</div>
+                    <h4 style="font-family:'Montserrat',sans-serif;color:var(--primary);">AI is analyzing your laps...</h4>
+                    <p style="opacity:0.7;">This may take 10-30 seconds</p>
+                </div>
+            `;
+
+            try {
+                const response = await fetch('/api/analysis/compare', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        lapId: yourLap.id,
+                        referenceLapId: refLap.id,
+                        context: {
+                            track: yourLap.track_name,
+                            car: yourLap.car_name,
+                            yourTime: yourLap.lap_time,
+                            refTime: refLap.lap_time,
+                            delta: yourLap.lap_time - refLap.lap_time
+                        }
+                    })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error || 'Analysis failed');
+                }
+
+                const result = await response.json();
+                displayAnalysis(result, yourLap, refLap);
+            } catch (error) {
+                coachingPanel.innerHTML = `
+                    <h3>AI Analysis</h3>
+                    <div style="text-align:center;padding:2rem;">
+                        <h4 style="font-family:'Montserrat',sans-serif;color:var(--danger);margin-bottom:0.5rem;">Analysis Error</h4>
+                        <p>${error.message}</p>
+                        <p style="opacity:0.6;margin-top:1rem;">Make sure the AI server is running and try again.</p>
+                    </div>
+                `;
+            }
+
+            compareBtn.disabled = false;
+            compareBtn.textContent = 'Analyze Laps';
+        });
+
+        function displayAnalysis(result, yourLap, refLap) {
+            const analysis = result.analysis || result.coaching || result;
+            const text = typeof analysis === 'string' ? analysis : (analysis.response || analysis.text || JSON.stringify(analysis));
+
+            // Parse the AI response into sections
+            const sections = text.split(/\n(?=#{1,3}\s|[A-Z][A-Za-z\s]+:|\d+\.\s)/).filter(s => s.trim());
+
+            let html = `<h3>AI Analysis</h3>`;
+            html += `<div class="analysis-section" style="border-left-color:var(--primary);">
+                <h4>Lap Comparison</h4>
+                <div style="display:flex;gap:2rem;flex-wrap:wrap;margin-bottom:1rem;">
+                    <div><span style="color:#6b7280;">Your Lap:</span> <strong>${formatLapTime(yourLap.lap_time)}</strong></div>
+                    <div><span style="color:#6b7280;">Reference:</span> <strong>${formatLapTime(refLap.lap_time)}</strong></div>
+                    <div><span style="color:#6b7280;">Delta:</span> <strong style="color:${yourLap.lap_time > refLap.lap_time ? '#dc3545' : '#28a745'};">${yourLap.lap_time > refLap.lap_time ? '+' : ''}${(yourLap.lap_time - refLap.lap_time).toFixed(3)}s</strong></div>
+                </div>
+            </div>`;
+
+            html += `<div class="analysis-section"><h4>AI Coaching Feedback</h4>`;
+            // Render the analysis text with basic markdown support
+            const formatted = text
+                .replace(/^### (.+)$/gm, '</div><div class="analysis-section"><h4>$1</h4>')
+                .replace(/^## (.+)$/gm, '</div><div class="analysis-section"><h4>$1</h4>')
+                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\n- /g, '<br>- ')
+                .replace(/\n\d+\. /g, (m) => '<br>' + m.trim())
+                .replace(/\n\n/g, '<br><br>')
+                .replace(/\n/g, '<br>');
+            html += `<p style="line-height:1.8;">${formatted}</p></div>`;
+
+            coachingPanel.innerHTML = html;
+        }
+
+        async function loadUserLaps() {
+            try {
+                const response = await fetch('/api/telemetry/all-laps');
+                if (!response.ok) throw new Error('Failed to load laps');
+                const data = await response.json();
+                allLaps = data.laps || [];
+                populateSelectors();
+            } catch (error) {
+                console.error('Error loading laps:', error);
+                yourLapSelect.innerHTML = '<option value="">Failed to load laps</option>';
+                refLapSelect.innerHTML = '<option value="">Failed to load laps</option>';
+            }
+        }
+
+        function populateSelectors() {
+            if (allLaps.length === 0) {
+                yourLapSelect.innerHTML = '<option value="">No laps uploaded yet</option>';
+                refLapSelect.innerHTML = '<option value="">No laps uploaded yet</option>';
+                return;
+            }
+
+            // Group laps by track
+            const byTrack = {};
+            allLaps.forEach(lap => {
+                const track = lap.track_name || 'Unknown';
+                if (!byTrack[track]) byTrack[track] = [];
+                byTrack[track].push(lap);
+            });
+
+            function buildOptions(selectEl) {
+                selectEl.innerHTML = '<option value="">Select a lap...</option>';
+                for (const [track, laps] of Object.entries(byTrack)) {
+                    const group = document.createElement('optgroup');
+                    group.label = track;
+                    laps.forEach(lap => {
+                        const opt = document.createElement('option');
+                        opt.value = lap.id;
+                        const date = new Date(lap.created_at).toLocaleDateString();
+                        opt.textContent = `${lap.car_name} - ${formatLapTime(lap.lap_time)} (Lap ${lap.lap_number || '?'}) - ${date}`;
+                        group.appendChild(opt);
+                    });
+                    selectEl.appendChild(group);
+                }
+            }
+
+            buildOptions(yourLapSelect);
+            buildOptions(refLapSelect);
+        }
+
+        loadUserLaps();
+    </script>
+</body>
+</html>
