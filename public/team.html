@@ -354,6 +354,132 @@
             font-size: 1.2rem;
         }
 
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(5px);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 2.5rem;
+            border-radius: 12px;
+            max-width: 500px;
+            width: 90%;
+            position: relative;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .modal-content h2 {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 1.6rem;
+            margin-bottom: 1.5rem;
+            color: var(--primary);
+            text-transform: uppercase;
+        }
+
+        .close-modal {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            font-size: 2rem;
+            color: var(--text);
+            cursor: pointer;
+            border: none;
+            background: none;
+        }
+
+        .close-modal:hover {
+            color: var(--primary);
+        }
+
+        .form-group {
+            margin-bottom: 1.2rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.4rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 0.5px;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 0.8rem;
+            background: var(--surface);
+            border: 2px solid var(--border);
+            color: var(--text);
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1rem;
+            border-radius: 4px;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: var(--primary);
+            background: white;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .submit-btn {
+            width: 100%;
+            padding: 1rem;
+            background: var(--primary);
+            border: none;
+            color: white;
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 700;
+            font-size: 1rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-radius: 4px;
+            margin-top: 0.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .submit-btn:hover {
+            background: var(--primary-dark);
+        }
+
+        .delete-btn {
+            padding: 0.6rem 1rem;
+            border: 2px solid var(--danger);
+            background: white;
+            color: var(--danger);
+            cursor: pointer;
+            border-radius: 4px;
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 600;
+            font-size: 0.85rem;
+            transition: all 0.3s ease;
+        }
+
+        .delete-btn:hover {
+            background: var(--danger);
+            color: white;
+        }
+
         @media (max-width: 968px) {
             .page-header {
                 flex-direction: column;
@@ -373,6 +499,10 @@
 
             .page-header h1 {
                 font-size: 2rem;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -416,68 +546,239 @@
 
             <div class="roster-section">
                 <h3>Team Roster</h3>
-
-                <div style="text-align: center; padding: 3rem; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
-                    <div style="font-size: 4rem; margin-bottom: 1rem;">👥</div>
-                    <h4 style="font-family: 'Montserrat', sans-serif; font-size: 1.5rem; color: var(--primary); margin-bottom: 1rem;">No Team Members Yet</h4>
-                    <p style="color: var(--text); margin-bottom: 2rem; opacity: 0.8;">Start building your endurance racing team by adding members.</p>
-                    <button class="add-member-btn" style="padding: 1rem 2rem; background: var(--primary); color: white; border: none; border-radius: 4px; font-family: 'Montserrat', sans-serif; font-weight: 600; cursor: pointer; font-size: 1rem;">
-                        + Add Team Member
-                    </button>
-                </div>
-            </div>
-
-            <div class="rotation-section">
-                <h3>Race Rotation Plan</h3>
-                <div style="text-align: center; padding: 3rem; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
-                    <div style="font-size: 4rem; margin-bottom: 1rem;">🏁</div>
-                    <h4 style="font-family: 'Montserrat', sans-serif; font-size: 1.5rem; color: var(--primary); margin-bottom: 1rem;">No Rotation Planned</h4>
-                    <p style="color: var(--text); margin-bottom: 2rem; opacity: 0.8;">Plan driver stints for upcoming endurance races.</p>
-                    <button class="add-member-btn" style="padding: 1rem 2rem; background: var(--primary); color: white; border: none; border-radius: 4px; font-family: 'Montserrat', sans-serif; font-weight: 600; cursor: pointer; font-size: 1rem;">
-                        + Create Rotation Plan
-                    </button>
-                </div>
+                <div id="rosterContainer"></div>
             </div>
         </main>
     </div>
 
+    <!-- Add Member Modal -->
+    <div id="addMemberModal" class="modal">
+        <div class="modal-content">
+            <button class="close-modal" onclick="closeModal()">&times;</button>
+            <h2 id="modalTitle">Add Team Member</h2>
+            <form id="memberForm">
+                <input type="hidden" id="editMemberId">
+                <div class="form-group">
+                    <label for="memberName">Name *</label>
+                    <input type="text" id="memberName" required placeholder="Driver name">
+                </div>
+                <div class="form-group">
+                    <label for="memberRole">Role</label>
+                    <select id="memberRole">
+                        <option value="Driver">Driver</option>
+                        <option value="Team Manager">Team Manager</option>
+                        <option value="Race Engineer">Race Engineer</option>
+                        <option value="Strategist">Strategist</option>
+                        <option value="Reserve Driver">Reserve Driver</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="memberIracingId">iRacing ID</label>
+                        <input type="text" id="memberIracingId" placeholder="e.g. 313251">
+                    </div>
+                    <div class="form-group">
+                        <label for="memberIrating">iRating</label>
+                        <input type="number" id="memberIrating" placeholder="e.g. 2500">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="memberSR">Safety Rating</label>
+                        <input type="number" id="memberSR" step="0.01" placeholder="e.g. 4.50">
+                    </div>
+                    <div class="form-group">
+                        <label for="memberCar">Preferred Car</label>
+                        <input type="text" id="memberCar" placeholder="e.g. Porsche 992 GT3 R">
+                    </div>
+                </div>
+                <button type="submit" class="submit-btn" id="submitBtn">Add Member</button>
+            </form>
+        </div>
+    </div>
+
     <script>
-        // Add member functionality
-        document.querySelector('.add-member-btn').addEventListener('click', () => {
-            console.log('Add member clicked');
-            // TODO: Implement add member modal/form
-        });
+        let members = [];
 
-        // Action button handlers
-        document.querySelectorAll('.action-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const action = e.target.textContent;
-                const memberCard = e.target.closest('.member-card');
-                const memberName = memberCard.querySelector('.member-name').textContent;
-                console.log(`${action} clicked for ${memberName}`);
-                // TODO: Implement action handlers
-            });
-        });
+        // Load team members on page load
+        loadMembers();
 
-        // Load team data
-        async function loadTeamData() {
+        async function loadMembers() {
             try {
-                const response = await fetch('/api/team');
+                const response = await fetch('/api/team/members');
+                if (response.status === 401) {
+                    window.location.href = '/';
+                    return;
+                }
                 if (response.ok) {
-                    const team = await response.json();
-                    displayTeam(team);
+                    const data = await response.json();
+                    members = data.members;
+                    renderRoster();
+                    updateStats();
                 }
             } catch (error) {
-                console.error('Error loading team:', error);
+                console.error('Error loading members:', error);
             }
         }
 
-        function displayTeam(team) {
-            // TODO: Implement team display logic
+        function renderRoster() {
+            const container = document.getElementById('rosterContainer');
+
+            if (members.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 3rem;">
+                        <div style="font-size: 4rem; margin-bottom: 1rem;">👥</div>
+                        <h4 style="font-family: 'Montserrat', sans-serif; font-size: 1.5rem; color: var(--primary); margin-bottom: 1rem;">No Team Members Yet</h4>
+                        <p style="color: var(--text); margin-bottom: 2rem; opacity: 0.8;">Start building your endurance racing team by adding members.</p>
+                    </div>`;
+                return;
+            }
+
+            container.innerHTML = members.map(m => `
+                <div class="member-card" data-id="${m.id}">
+                    <div class="member-info">
+                        <div class="member-avatar">${getInitials(m.name)}</div>
+                        <div class="member-details">
+                            <div class="member-name">${escapeHtml(m.name)}</div>
+                            <div class="member-role">${escapeHtml(m.role || 'Driver')}${m.iracing_id ? ' &middot; iRacing #' + escapeHtml(m.iracing_id) : ''}</div>
+                        </div>
+                    </div>
+                    <div class="member-stats">
+                        ${m.irating ? `<div class="member-stat">
+                            <div class="member-stat-value">${m.irating.toLocaleString()}</div>
+                            <div class="member-stat-label">iRating</div>
+                        </div>` : ''}
+                        ${m.safety_rating ? `<div class="member-stat">
+                            <div class="member-stat-value">${parseFloat(m.safety_rating).toFixed(2)}</div>
+                            <div class="member-stat-label">SR</div>
+                        </div>` : ''}
+                        ${m.preferred_car ? `<div class="member-stat">
+                            <div class="member-stat-value" style="font-size: 0.9rem;">${escapeHtml(m.preferred_car)}</div>
+                            <div class="member-stat-label">Car</div>
+                        </div>` : ''}
+                    </div>
+                    <div class="member-actions">
+                        <button class="action-btn" onclick="editMember(${m.id})">Edit</button>
+                        <button class="delete-btn" onclick="deleteMember(${m.id}, '${escapeHtml(m.name)}')">Remove</button>
+                    </div>
+                </div>
+            `).join('');
         }
 
-        // Load team on page load
-        loadTeamData();
+        function updateStats() {
+            const statValues = document.querySelectorAll('.stat-value');
+            statValues[0].textContent = members.length;
+
+            const withRating = members.filter(m => m.irating > 0);
+            if (withRating.length > 0) {
+                const avg = Math.round(withRating.reduce((sum, m) => sum + m.irating, 0) / withRating.length);
+                statValues[1].textContent = avg >= 1000 ? (avg / 1000).toFixed(1) + 'K' : avg;
+            } else {
+                statValues[1].textContent = '-';
+            }
+        }
+
+        function getInitials(name) {
+            return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        // Modal controls
+        function openModal() {
+            document.getElementById('addMemberModal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('addMemberModal').classList.remove('active');
+            document.getElementById('memberForm').reset();
+            document.getElementById('editMemberId').value = '';
+            document.getElementById('modalTitle').textContent = 'Add Team Member';
+            document.getElementById('submitBtn').textContent = 'Add Member';
+        }
+
+        // Add member button handlers
+        document.querySelectorAll('.add-member-btn').forEach(btn => {
+            btn.addEventListener('click', openModal);
+        });
+
+        document.getElementById('addMemberModal').addEventListener('click', (e) => {
+            if (e.target.id === 'addMemberModal') closeModal();
+        });
+
+        // Form submit
+        document.getElementById('memberForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const editId = document.getElementById('editMemberId').value;
+            const body = {
+                name: document.getElementById('memberName').value,
+                role: document.getElementById('memberRole').value,
+                iracing_id: document.getElementById('memberIracingId').value,
+                irating: document.getElementById('memberIrating').value,
+                safety_rating: document.getElementById('memberSR').value,
+                preferred_car: document.getElementById('memberCar').value
+            };
+
+            try {
+                const url = editId ? '/api/team/members/' + editId : '/api/team/members';
+                const method = editId ? 'PUT' : 'POST';
+
+                const response = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+
+                if (response.ok) {
+                    closeModal();
+                    loadMembers();
+                } else {
+                    const data = await response.json();
+                    alert(data.error || 'Failed to save member');
+                }
+            } catch (error) {
+                alert('Error saving member');
+            }
+        });
+
+        // Edit member
+        function editMember(id) {
+            const member = members.find(m => m.id === id);
+            if (!member) return;
+
+            document.getElementById('editMemberId').value = id;
+            document.getElementById('memberName').value = member.name;
+            document.getElementById('memberRole').value = member.role || 'Driver';
+            document.getElementById('memberIracingId').value = member.iracing_id || '';
+            document.getElementById('memberIrating').value = member.irating || '';
+            document.getElementById('memberSR').value = member.safety_rating || '';
+            document.getElementById('memberCar').value = member.preferred_car || '';
+            document.getElementById('modalTitle').textContent = 'Edit Team Member';
+            document.getElementById('submitBtn').textContent = 'Save Changes';
+            openModal();
+        }
+
+        // Delete member
+        async function deleteMember(id, name) {
+            if (!confirm('Remove ' + name + ' from the team?')) return;
+
+            try {
+                const response = await fetch('/api/team/members/' + id, { method: 'DELETE' });
+                if (response.ok) {
+                    loadMembers();
+                } else {
+                    alert('Failed to remove member');
+                }
+            } catch (error) {
+                alert('Error removing member');
+            }
+        }
     </script>
 </body>
 </html>

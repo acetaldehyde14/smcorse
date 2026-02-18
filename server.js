@@ -20,6 +20,7 @@ const telemetryRoutes = require('./src/routes/telemetry');
 const analysisRoutes = require('./src/routes/analysis');
 const libraryRoutes = require('./src/routes/library');
 const assistantRoutes = require('./src/routes/assistant');
+const teamRoutes = require('./src/routes/team');
 const { handleUploadError } = require('./src/middleware/upload');
 
 // Middleware
@@ -227,6 +228,7 @@ app.use('/api/telemetry', telemetryRoutes);
 app.use('/api/analysis', analysisRoutes);
 app.use('/api/library', libraryRoutes);
 app.use('/api/assistant', assistantRoutes);
+app.use('/api/team', teamRoutes);
 
 // Serve uploaded files (protected)
 app.use('/uploads', requireAuth, express.static(path.join(__dirname, 'uploads')));
