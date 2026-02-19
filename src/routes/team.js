@@ -99,4 +99,91 @@ router.delete('/members/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// ── Profile & Notification Settings ────────────────────────────
+
+// GET /api/team/profile — current user's notification settings
+router.get('/profile', authenticateToken, async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT id, username, iracing_name, iracing_id,
+              telegram_chat_id, discord_user_id, discord_webhook
+       FROM users WHERE id = $1`,
+      [req.user.id]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ error: 'User not found' });
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Get profile error:', error);
+    res.status(500).json({ error: 'Failed to fetch profile' });
+  }
+});
+
+// PATCH /api/team/profile — update iracing_name, discord_webhook, etc.
+router.patch('/profile', authenticateToken, async (req, res) => {
+  const { iracing_name, iracing_id, discord_webhook } = req.body;
+  try {
+    const result = await query(
+      `UPDATE users
+       SET iracing_name   = COALESCE($1, iracing_name),
+           iracing_id     = COALESCE($2, iracing_id),
+           discord_webhook = COALESCE($3, discord_webhook)
+       WHERE id = $4
+       RETURNING id, username, iracing_name, iracing_id, discord_webhook`,
+      [iracing_name, iracing_id, discord_webhook, req.user.id]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
+
+// POST /api/team/register-telegram — link telegram chat ID
+router.post('/register-telegram', authenticateToken, async (req, res) => {
+  const { telegram_chat_id } = req.body;
+  if (!telegram_chat_id) return res.status(400).json({ error: 'telegram_chat_id required' });
+  try {
+    await query(
+      'UPDATE users SET telegram_chat_id = $1 WHERE id = $2',
+      [telegram_chat_id, req.user.id]
+    );
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Register telegram error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/team/register-discord — link discord user ID
+router.post('/register-discord', authenticateToken, async (req, res) => {
+  const { discord_user_id } = req.body;
+  if (!discord_user_id) return res.status(400).json({ error: 'discord_user_id required' });
+  try {
+    await query(
+      'UPDATE users SET discord_user_id = $1 WHERE id = $2',
+      [discord_user_id, req.user.id]
+    );
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Register discord error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /api/team/drivers — active users list (for stint roster dropdowns)
+router.get('/drivers', authenticateToken, async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT id, username, iracing_name,
+              (telegram_chat_id IS NOT NULL) AS has_telegram,
+              (discord_user_id IS NOT NULL)  AS has_discord
+       FROM users WHERE is_active = TRUE ORDER BY username`
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get drivers error:', error);
+    res.status(500).json({ error: 'Failed to fetch drivers' });
+  }
+});
+
 module.exports = router;

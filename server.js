@@ -2,6 +2,7 @@ const express = require('express');
 const session = require('express-session');
 const bodyParser = require('body-parser');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const path = require('path');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -15,13 +16,17 @@ const PORT = process.env.PORT || 3000;
 const { pool, query } = require('./src/config/database');
 const llamaClient = require('./src/config/llama');
 
-// Import telemetry routes
+// Import routes
 const telemetryRoutes = require('./src/routes/telemetry');
 const analysisRoutes = require('./src/routes/analysis');
 const libraryRoutes = require('./src/routes/library');
 const assistantRoutes = require('./src/routes/assistant');
 const teamRoutes = require('./src/routes/team');
+const racesRoutes = require('./src/routes/races');
+const iracingRoutes = require('./src/routes/iracing');
 const { handleUploadError } = require('./src/middleware/upload');
+const { authenticateToken } = require('./src/middleware/auth');
+const { initTelegram, initDiscord, shutdownBots } = require('./src/services/notifications');
 
 // Middleware
 app.use(helmet({
@@ -183,52 +188,74 @@ app.get('/api/user', requireAuth, async (req, res) => {
 });
 
 // ============================================
-// TELEMETRY & ANALYSIS ROUTES (iRacing Coach)
+// JWT AUTH ROUTES (Desktop Client)
 // ============================================
 
-// Middleware to attach user ID from session to req
-app.use('/api/telemetry', (req, res, next) => {
-  if (req.session.userId) {
-    req.userId = req.session.userId;
-    next();
-  } else {
-    res.status(401).json({ error: 'Authentication required' });
+// POST /api/auth/login — username+password login, returns JWT token
+app.post('/api/auth/login', async (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) {
+    return res.status(400).json({ error: 'username and password are required' });
+  }
+
+  try {
+    const result = await query(
+      'SELECT id, username, password_hash, iracing_name FROM users WHERE username = $1',
+      [username]
+    );
+    if (result.rowCount === 0) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    const user = result.rows[0];
+    const valid = await bcrypt.compare(password, user.password_hash);
+    if (!valid) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    const token = jwt.sign(
+      { id: user.id, username: user.username },
+      process.env.JWT_SECRET,
+      { expiresIn: '90d' }
+    );
+
+    res.json({ token, user: { id: user.id, username: user.username, iracing_name: user.iracing_name } });
+  } catch (error) {
+    console.error('[Auth login]', error.message);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
-app.use('/api/analysis', (req, res, next) => {
-  if (req.session.userId) {
-    req.userId = req.session.userId;
-    next();
-  } else {
-    res.status(401).json({ error: 'Authentication required' });
-  }
+// POST /api/auth/validate — desktop app verifies stored token on startup
+app.post('/api/auth/validate', authenticateToken, (req, res) => {
+  res.json({ valid: true, user: req.user });
 });
 
-app.use('/api/library', (req, res, next) => {
-  if (req.session.userId) {
-    req.userId = req.session.userId;
-    next();
-  } else {
-    res.status(401).json({ error: 'Authentication required' });
-  }
-});
+// ============================================
+// TELEMETRY, ANALYSIS & RACE ROUTES
+// ============================================
 
-app.use('/api/assistant', (req, res, next) => {
-  if (req.session.userId) {
-    req.userId = req.session.userId;
+// Unified auth middleware for API routes — sets req.userId for legacy route compatibility
+const attachUserId = (req, res, next) => {
+  authenticateToken(req, res, () => {
+    req.userId = req.user.id;
     next();
-  } else {
-    res.status(401).json({ error: 'Authentication required' });
-  }
-});
+  });
+};
 
-// Mount telemetry routes
+app.use('/api/telemetry', attachUserId);
+app.use('/api/analysis', attachUserId);
+app.use('/api/library', attachUserId);
+app.use('/api/assistant', attachUserId);
+
+// Mount routes
 app.use('/api/telemetry', telemetryRoutes);
 app.use('/api/analysis', analysisRoutes);
 app.use('/api/library', libraryRoutes);
 app.use('/api/assistant', assistantRoutes);
 app.use('/api/team', teamRoutes);
+app.use('/api/races', racesRoutes);
+app.use('/api/iracing', iracingRoutes);
 
 // Serve uploaded files (protected)
 app.use('/uploads', requireAuth, express.static(path.join(__dirname, 'uploads')));
@@ -324,11 +351,16 @@ app.listen(PORT, '0.0.0.0', () => {
       console.log('   Check connection to http://23.141.136.111:11434');
     }
   });
+
+  // Initialize notification bots
+  initTelegram();
+  initDiscord();
 });
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('SIGTERM received, closing server...');
+  shutdownBots();
   pool.end(() => {
     console.log('Database connections closed');
     process.exit(0);

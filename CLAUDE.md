@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Website and interactive tool for the **SM CORSE iRacing endurance racing team**. Built as a Node.js application with a blue/white professional design aesthetic. Implements authentication, telemetry upload/parsing, AI-powered coaching and assistant, team management, lap library, and session tracking. Also supports **Le Mans Ultimate (LMU)** alongside iRacing.
+Website and interactive tool for the **SM CORSE iRacing endurance racing team**. Built as a Node.js application with a blue/white professional design aesthetic. Implements authentication, telemetry upload/parsing, AI-powered coaching and assistant, team management, lap library, session tracking, and **live endurance race tracking** with driver stint management and Telegram/Discord notifications. Also supports **Le Mans Ultimate (LMU)** alongside iRacing.
 
-**Tech Stack:** Single-file Express server with PostgreSQL database and session-based authentication. Server listens on `0.0.0.0` for LAN access.
+**Tech Stack:** Single-file Express server with PostgreSQL database. Dual authentication: session-based for web UI, JWT Bearer tokens for desktop client. Server listens on `0.0.0.0` for LAN access.
 
 ## Development Commands
 
@@ -34,23 +34,26 @@ start nginx         # Start server
 ## Architecture
 
 ### Merged Codebase Structure
-The server combines two systems into one:
+The server combines three systems into one:
 1. **Original auth system** - Session-based authentication with simple HTML pages
 2. **iRacing Coach backend** - Telemetry upload, analysis, AI coaching, AI assistant routes
+3. **Enduro race tracking** - Live race monitoring, stint roster, driver change/fuel notifications
 
-All backend logic is in `server.js` (~350 lines). Additional modules in `src/`:
+All backend logic is in `server.js`. Additional modules in `src/`:
 - `src/config/` - Database and Llama client configuration
-- `src/routes/` - Telemetry, analysis, library, and assistant API routes
-- `src/services/` - Telemetry parsing (IBT + BLAP formats), lap comparison, AI coaching logic
-- `src/middleware/` - File upload handling and auth
+- `src/routes/` - Telemetry, analysis, library, assistant, races, iracing, and team API routes
+- `src/services/` - Telemetry parsing (IBT + BLAP formats), lap comparison, AI coaching logic, notifications (Telegram + Discord)
+- `src/middleware/` - File upload handling and dual auth (session + JWT)
 
 ### Authentication Flow
-- **Session-based** authentication using `express-session` (NOT JWT)
+- **Dual auth**: session-based for web users, JWT Bearer tokens for desktop client
 - Passwords hashed with bcryptjs (10 salt rounds)
 - Sessions stored in memory (not persistent across restarts)
-- `requireAuth` middleware protects server.js routes
-- `authenticateToken` middleware (src/middleware/auth.js) protects API routes - sets `req.user.id` from `req.session.userId`
-- All telemetry/assistant routes check session before allowing access
+- `requireAuth` middleware protects server.js page routes (session-only, redirects to `/`)
+- `authenticateToken` middleware (src/middleware/auth.js) protects API routes - tries session first, falls back to JWT Bearer token. Sets `req.user = { id, username }`
+- `POST /api/auth/login` — username+password login returns JWT token (90-day expiry) for desktop client
+- `POST /api/auth/validate` — desktop client verifies stored token on startup
+- All telemetry/assistant/race routes use the unified `authenticateToken` middleware
 
 ### Database - PostgreSQL
 - **PostgreSQL** (not SQLite anymore) via `pg` connection pool
@@ -74,7 +77,9 @@ Static files in `public/`:
 - `assistant.html` - AI Race Engineer chat interface (iRacing + LMU)
 - `library.html` - Reference lap library and leaderboards
 - `team.html` - Team roster management and stint rotation planning
+- `race.html` - Live race tracker: race management, stint roster, real-time status, event log, notification settings
 - `public/logos/` - Partner logos (Swift Display, SimTeam, RaceData, RaceData.AI)
+- `public/iracing-enduro-client/` - Python desktop client for polling iRacing telemetry
 
 All HTML files contain inline CSS and JavaScript. No build process needed.
 
@@ -110,6 +115,29 @@ All require authentication via session middleware.
 - `POST /api/assistant/chat` - Chat with AI Race Engineer (iRacing + LMU expert)
 - `GET /api/assistant/search` - Web search via DuckDuckGo (no API key needed)
 - `GET /api/assistant/health` - Check Llama server availability
+
+### Race Routes (from src/routes/races.js)
+- `GET /api/races` - List all races
+- `POST /api/races` - Create a new race
+- `GET /api/races/active` - Get currently active race
+- `POST /api/races/:id/start` - Start race (deactivates others, inits race state)
+- `POST /api/races/:id/end` - End a race
+- `GET /api/races/:id/roster` - Get stint roster with driver info
+- `POST /api/races/:id/roster` - Replace full stint roster (transaction)
+- `GET /api/races/:id/events` - Get recent telemetry events
+
+### iRacing Routes (from src/routes/iracing.js)
+- `POST /api/iracing/event` - Receive driver_change/fuel_update from desktop clients
+- `GET /api/iracing/status` - Current race status (active driver, fuel level)
+
+### Team Routes - Extended (from src/routes/team.js)
+- `GET /api/team/members` - List team members
+- `POST/PUT/DELETE /api/team/members` - CRUD team members
+- `GET /api/team/profile` - User's notification settings
+- `PATCH /api/team/profile` - Update iracing_name, discord_webhook
+- `POST /api/team/register-telegram` - Link Telegram chat ID
+- `POST /api/team/register-discord` - Link Discord user ID
+- `GET /api/team/drivers` - Active users list (for stint roster dropdowns)
 
 ## Telemetry Parser (src/services/parser.js)
 
@@ -162,6 +190,15 @@ Required in `.env`:
 - `OLLAMA_HOST` - Remote Llama server URL (http://23.141.136.111:11434)
 - `OLLAMA_MODEL` - Model name (llama3.3:70b-instruct-q4_K_M)
 
+**JWT (Desktop Client):**
+- `JWT_SECRET` - Secret for signing JWT tokens (REQUIRED for desktop client auth)
+
+**Notification Bots (optional):**
+- `TELEGRAM_BOT_TOKEN` - Telegram bot API key
+- `DISCORD_BOT_TOKEN` - Discord bot API key
+- `DISCORD_TEAM_WEBHOOK` - Discord team channel webhook URL
+- `DISCORD_CLIENT_ID` - Discord application ID
+
 **File Uploads:**
 - `MAX_FILE_SIZE` - Max upload size in bytes (default: 52428800 = 50MB)
 - `ALLOWED_ORIGINS` - CORS origins (optional)
@@ -187,7 +224,7 @@ PostgreSQL via connection pool (asynchronous):
 ## Current State vs. Planned Features
 
 **Currently Implemented:**
-- User authentication system (signup/login/logout)
+- User authentication system (signup/login/logout) with dual auth (session + JWT)
 - Session management with LAN access (0.0.0.0)
 - Dashboard with feature card navigation
 - Telemetry upload and parsing (.ibt, .blap, .olap)
@@ -197,6 +234,10 @@ PostgreSQL via connection pool (asynchronous):
 - Team management page (roster, rotation planning)
 - Lap library and leaderboard pages
 - Partners section on landing page (Swift Display, SimTeam, RaceData, RaceData.AI)
+- Live endurance race tracking (race CRUD, stint roster, real-time status)
+- Desktop client event ingestion (driver changes, fuel updates)
+- Telegram + Discord notification bots (driver change alerts, low fuel warnings)
+- Notification settings UI (iRacing name, Telegram, Discord webhook)
 
 **Planned Features:**
 - Race calendar and event planning

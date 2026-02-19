@@ -1,22 +1,39 @@
 /**
- * Session-based Authentication Middleware
- * Replaces JWT auth to match the main authentication system
+ * Dual Authentication Middleware
+ * Supports session-based auth (web) and JWT Bearer tokens (desktop client).
+ * Session is checked first; if absent, falls back to JWT.
  */
 
+const jwt = require('jsonwebtoken');
+
 /**
- * Verify user is authenticated via session
+ * Verify user is authenticated via session OR JWT Bearer token.
+ * Sets req.user = { id, username } for downstream handlers.
  */
 const authenticateToken = (req, res, next) => {
+  // 1. Try session first (web users)
   if (req.session && req.session.userId) {
-    // Attach user info to req for compatibility with route handlers
     req.user = {
       id: req.session.userId,
       username: req.session.userName
     };
-    next();
-  } else {
-    return res.status(401).json({ error: 'Authentication required' });
+    return next();
   }
+
+  // 2. Fall back to JWT Bearer token (desktop client)
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.slice(7);
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      req.user = { id: decoded.id, username: decoded.username };
+      return next();
+    } catch (err) {
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+  }
+
+  return res.status(401).json({ error: 'Authentication required' });
 };
 
 /**
@@ -28,18 +45,29 @@ const optionalAuth = (req, res, next) => {
       id: req.session.userId,
       username: req.session.userName
     };
+  } else {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const decoded = jwt.verify(authHeader.slice(7), process.env.JWT_SECRET);
+        req.user = { id: decoded.id, username: decoded.username };
+      } catch (err) {
+        // Silent — optional auth
+      }
+    }
   }
   next();
 };
 
 /**
- * Compatibility - not used in session-based auth
- * but kept for code that might reference it
+ * Generate a JWT token for a user (used by /api/auth/login)
  */
 const generateToken = (user) => {
-  // In session-based auth, we don't generate tokens
-  // Just return null or a placeholder
-  return null;
+  return jwt.sign(
+    { id: user.id, username: user.username },
+    process.env.JWT_SECRET,
+    { expiresIn: '90d' }
+  );
 };
 
 module.exports = {
