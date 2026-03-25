@@ -255,6 +255,7 @@
                     <div class="user-name" id="userName">Loading...</div>
                     <div class="user-email" id="userEmail"></div>
                 </div>
+                <a href="/settings.html" style="padding:0.7rem 1.4rem;border:2px solid var(--border);background:transparent;color:var(--text);font-family:'Montserrat',sans-serif;font-weight:600;font-size:0.85rem;text-decoration:none;text-transform:uppercase;letter-spacing:1px;border-radius:4px;transition:all 0.2s ease;" onmouseover="this.style.borderColor='var(--primary)';this.style.color='var(--primary)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text)'">Settings</a>
                 <button class="logout-btn" onclick="logout()">Logout</button>
             </div>
         </header>
@@ -305,6 +306,10 @@
                     <h3>👥 Team Management</h3>
                     <p>Manage team roster, plan driver rotations for endurance races, and coordinate practice sessions.</p>
                 </div>
+                <div class="card" onclick="window.location.href='/stint-planner.html'">
+                    <h3>🗓️ Stint Planner</h3>
+                    <p>Mark driver availability in 1-hour blocks, then auto-generate or AI-plan your full stint schedule in 45-minute slots.</p>
+                </div>
                 <div class="card" onclick="window.location.href='/race.html'">
                     <h3>🏎️ Live Race Tracker</h3>
                     <p>Monitor endurance races in real time. Track driver stints, fuel levels, and get Telegram/Discord alerts for driver changes and low fuel.</p>
@@ -312,6 +317,10 @@
                 <div class="card" onclick="window.location.href='/strategy.html'">
                     <h3>⚙️ Race Strategy</h3>
                     <p>Calculate fuel usage, tire wear, and pit stop strategy for endurance races. Plan your stints and driver swaps.</p>
+                </div>
+                <div class="card" onclick="window.location.href='/settings.html'">
+                    <h3>⚙️ Profile Settings</h3>
+                    <p>Update your profile picture, iRacing name, and link your Telegram and Discord accounts for race notifications.</p>
                 </div>
             </div>
         </main>

@@ -1,0 +1,1872 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stint Planner - SM CORSE</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #0066cc;
+            --primary-dark: #004d99;
+            --accent: #00aaff;
+            --success: #28a745;
+            --danger: #dc3545;
+            --warning: #ffc107;
+            --dark: #0a0f1c;
+            --surface: #f8f9fa;
+            --text: #2c3e50;
+            --light: #ffffff;
+            --border: #e0e6ed;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            background: var(--surface);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        .container { max-width: 1600px; margin: 0 auto; padding: 2rem; }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: white;
+            margin: -2rem -2rem 3rem -2rem;
+            padding: 1.5rem 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            border-bottom: 2px solid var(--border);
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .logo-container { display: flex; align-items: center; gap: 1rem; cursor: pointer; }
+        .logo-img { height: 50px; width: auto; }
+
+        .header-right { display: flex; align-items: center; gap: 0.8rem; }
+
+        .back-btn {
+            padding: 0.7rem 1.8rem;
+            border: 2px solid var(--primary);
+            background: transparent;
+            color: var(--primary);
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+            border-radius: 4px;
+            text-decoration: none;
+        }
+        .back-btn:hover { background: var(--primary); color: white; }
+
+        .page-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .page-header h1 {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 2.5rem;
+            color: var(--primary);
+            font-weight: 800;
+        }
+        .page-header p { font-size: 1.15rem; color: var(--text); opacity: 0.75; margin-top: 0.4rem; }
+
+        /* Session pill */
+        .session-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: #eef4ff;
+            border: 1px solid rgba(0,102,204,0.25);
+            border-radius: 20px;
+            padding: 0.35rem 0.9rem;
+            font-size: 0.88rem;
+            font-weight: 600;
+            color: var(--primary);
+            font-family: 'Montserrat', sans-serif;
+        }
+        .session-pill .save-dot {
+            width: 7px; height: 7px;
+            border-radius: 50%;
+            background: var(--success);
+            flex-shrink: 0;
+        }
+        .session-pill .save-dot.saving { background: var(--warning); }
+
+        /* ── Tab Navigation ── */
+        .tab-nav {
+            display: flex;
+            gap: 0;
+            margin-bottom: 0;
+            border-bottom: 2px solid var(--border);
+        }
+
+        .tab-btn {
+            padding: 0.85rem 2.2rem;
+            background: transparent;
+            border: none;
+            border-bottom: 3px solid transparent;
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 600;
+            font-size: 0.95rem;
+            color: var(--text);
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: -2px;
+            opacity: 0.6;
+        }
+        .tab-btn:hover { color: var(--primary); opacity: 1; }
+        .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); opacity: 1; }
+
+        .tab-content { display: none; padding-top: 2rem; }
+        .tab-content.active { display: block; }
+
+        /* ── Cards ── */
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 2rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            margin-bottom: 2rem;
+        }
+        .card-title {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 1.4rem;
+            color: var(--primary);
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+
+        /* ── Form ── */
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .form-group { display: flex; flex-direction: column; gap: 0.4rem; }
+        .form-group label {
+            font-weight: 600;
+            font-size: 0.82rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text);
+            opacity: 0.7;
+        }
+        .form-group input, .form-group select {
+            padding: 0.6rem 0.9rem;
+            border: 2px solid var(--border);
+            border-radius: 4px;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1rem;
+            color: var(--text);
+            background: white;
+            transition: border-color 0.2s;
+        }
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        /* ── Buttons ── */
+        .btn {
+            padding: 0.7rem 1.6rem;
+            border: none;
+            border-radius: 4px;
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        .btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none !important; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover:not(:disabled) { background: var(--primary-dark); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,102,204,0.3); }
+        .btn-success { background: var(--success); color: white; }
+        .btn-success:hover:not(:disabled) { background: #1e7e34; transform: translateY(-2px); }
+        .btn-secondary { background: transparent; color: var(--text); border: 2px solid var(--border); }
+        .btn-secondary:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-danger:hover:not(:disabled) { background: #c82333; }
+        .btn-ai { background: linear-gradient(135deg, #6f42c1, var(--primary)); color: white; }
+        .btn-ai:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 4px 14px rgba(111,66,193,0.35); }
+        .btn-sm { padding: 0.4rem 1rem; font-size: 0.8rem; }
+
+        /* ── Driver Tags ── */
+        .drivers-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            min-height: 3rem;
+            padding: 0.6rem;
+            border: 2px dashed var(--border);
+            border-radius: 4px;
+            margin-bottom: 1rem;
+            align-items: center;
+        }
+        .driver-tag {
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
+            padding: 0.35rem 0.7rem;
+            background: var(--primary);
+            color: white;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+        .driver-tag .rm { background: none; border: none; color: white; cursor: pointer; font-size: 1.1rem; line-height: 1; opacity: 0.7; padding: 0; }
+        .driver-tag .rm:hover { opacity: 1; }
+        .add-driver-row { display: flex; gap: 0.8rem; align-items: flex-end; }
+
+        /* DB user picker */
+        .db-users-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            min-height: 2.8rem;
+            padding: 0.6rem;
+            border: 2px solid var(--border);
+            border-radius: 4px;
+            background: #fafbfc;
+            align-items: center;
+        }
+        .db-user-btn {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.35rem 0.8rem;
+            border: 2px solid var(--border);
+            border-radius: 20px;
+            background: white;
+            cursor: pointer;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text);
+            transition: all 0.15s;
+        }
+        .db-user-btn:hover { border-color: var(--primary); color: var(--primary); background: #eef4ff; }
+        .db-user-btn.added { background: #e8f5e9; border-color: var(--success); color: var(--success); cursor: default; }
+        .db-user-btn .db-avatar {
+            width: 22px; height: 22px;
+            border-radius: 50%;
+            object-fit: cover;
+            flex-shrink: 0;
+        }
+        .db-user-btn .db-initials {
+            width: 22px; height: 22px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: white;
+            font-size: 0.7rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        /* ── Availability Grid ── */
+        .grid-wrap {
+            overflow-x: auto;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+        }
+        .avail-table {
+            border-collapse: collapse;
+            white-space: nowrap;
+        }
+        .avail-table th {
+            background: var(--dark);
+            color: white;
+            padding: 0.55rem 0.6rem;
+            font-family: 'Montserrat', sans-serif;
+            font-size: 0.72rem;
+            text-align: center;
+            font-weight: 600;
+            border: 1px solid rgba(255,255,255,0.08);
+            min-width: 58px;
+        }
+        .avail-table th.col-driver { min-width: 140px; text-align: left; padding-left: 1rem; }
+        .avail-table td { padding: 0; border: 1px solid var(--border); }
+        .avail-table td.col-driver {
+            padding: 0.6rem 1rem;
+            font-weight: 600;
+            background: #f8f9fa;
+            font-size: 0.95rem;
+            min-width: 140px;
+        }
+        .avail-cell {
+            width: 58px;
+            height: 42px;
+            display: block;
+            cursor: pointer;
+            transition: filter 0.12s;
+        }
+        .avail-cell:hover { filter: brightness(0.85); }
+        .avail-cell.free       { background: #28a745; }
+        .avail-cell.inconvenient { background: #ffc107; }
+        .avail-cell.unavailable { background: #dc3545; }
+        .avail-cell.unknown    { background: #dde3ed; }
+
+        /* ── Legend ── */
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.2rem;
+            align-items: center;
+            margin-bottom: 1.2rem;
+        }
+        .legend-item { display: flex; align-items: center; gap: 0.5rem; font-weight: 600; font-size: 0.9rem; }
+        .legend-dot { width: 18px; height: 18px; border-radius: 3px; flex-shrink: 0; }
+        .legend-dot.free { background: #28a745; }
+        .legend-dot.inconvenient { background: #ffc107; }
+        .legend-dot.unavailable { background: #dc3545; }
+        .legend-dot.unknown { background: #dde3ed; border: 1px solid var(--border); }
+
+        /* ── Plan Grid ── */
+        .plan-cell {
+            width: 58px;
+            height: 42px;
+            display: block;
+            cursor: pointer;
+            transition: filter .12s;
+            position: relative;
+        }
+        .plan-cell:hover { filter: brightness(0.82); }
+        .plan-cell.empty { background: #eaecf0; }
+        .plan-cell.empty:hover { background: #c8cdd6; }
+
+        /* ── Block Picker ── */
+        .block-picker {
+            position: fixed;
+            z-index: 600;
+            background: white;
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.18);
+            padding: 0.5rem 0.4rem;
+            display: none;
+            min-width: 160px;
+        }
+        .block-picker.open { display: block; }
+        .block-picker-title {
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.45;
+            padding: 0.25rem 0.55rem 0.5rem;
+            font-family: 'Montserrat', sans-serif;
+        }
+        .block-picker-btn {
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
+            width: 100%;
+            padding: 0.42rem 0.6rem;
+            border: none;
+            border-radius: 6px;
+            background: none;
+            cursor: pointer;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            text-align: left;
+            color: var(--text);
+            transition: background .1s;
+        }
+        .block-picker-btn:hover { background: var(--surface); }
+        .block-picker-btn .bp-dot {
+            width: 11px; height: 11px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .block-picker-sep { height: 1px; background: var(--border); margin: 0.35rem 0; }
+
+        /* ── AI Section ── */
+        .ai-box {
+            background: linear-gradient(135deg, rgba(0,102,204,0.04), rgba(111,66,193,0.06));
+            border: 2px solid rgba(111,66,193,0.18);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .ai-box-title {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: #6f42c1;
+            margin-bottom: 0.6rem;
+        }
+        .ai-box textarea {
+            width: 100%;
+            padding: 0.7rem 1rem;
+            border: 2px solid rgba(111,66,193,0.2);
+            border-radius: 4px;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1rem;
+            resize: vertical;
+            background: white;
+            color: var(--text);
+            margin-top: 0.8rem;
+        }
+        .ai-box textarea:focus { outline: none; border-color: #6f42c1; }
+        .ai-response {
+            background: white;
+            border-left: 3px solid #6f42c1;
+            border-radius: 4px;
+            padding: 1rem 1.2rem;
+            margin-top: 1rem;
+            font-size: 0.95rem;
+            white-space: pre-wrap;
+            display: none;
+            color: var(--text);
+        }
+        .controls-row { display: flex; gap: 0.8rem; flex-wrap: wrap; margin-top: 1rem; align-items: center; }
+
+        /* ── Plan Cards ── */
+        .plan-cards-section { margin-top: 2.5rem; }
+        .plan-cards-section h2 {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 1.6rem;
+            font-weight: 800;
+            color: var(--primary);
+            margin-bottom: 1.5rem;
+        }
+        .plan-cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+            gap: 1.2rem;
+        }
+        .stint-card {
+            background: white;
+            border-radius: 8px;
+            padding: 1.4rem 1.5rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border-left: 5px solid var(--primary);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .stint-card:hover { transform: translateY(-4px); box-shadow: 0 6px 18px rgba(0,0,0,0.12); }
+        .stint-num { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; opacity: 0.55; margin-bottom: 0.25rem; font-family: 'Montserrat', sans-serif; }
+        .stint-driver { font-family: 'Montserrat', sans-serif; font-size: 1.25rem; font-weight: 800; margin-bottom: 0.5rem; }
+        .stint-time { font-size: 1.05rem; font-weight: 600; }
+        .stint-dur { font-size: 0.88rem; opacity: 0.65; margin-top: 0.25rem; }
+        .avail-badge {
+            display: inline-block;
+            padding: 0.15rem 0.55rem;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 0.78rem;
+            margin-top: 0.5rem;
+        }
+        .avail-badge.free { background: #d4edda; color: #155724; }
+        .avail-badge.inconvenient { background: #fff3cd; color: #856404; }
+
+        /* ── Messages ── */
+        .msg {
+            padding: 0.8rem 1.2rem;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            margin-bottom: 1rem;
+        }
+        .msg.info    { background: #cce5ff; color: #004085; border-left: 3px solid #0066cc; }
+        .msg.success { background: #d4edda; color: #155724; border-left: 3px solid #28a745; }
+        .msg.warning { background: #fff3cd; color: #856404; border-left: 3px solid #ffc107; }
+        .msg.error   { background: #f8d7da; color: #721c24; border-left: 3px solid #dc3545; }
+
+        /* ── Spinner ── */
+        .spinner {
+            display: inline-block;
+            width: 16px; height: 16px;
+            border: 2.5px solid rgba(255,255,255,0.35);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.75s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── Modals ── */
+        .modal-overlay {
+            position: fixed; inset: 0; z-index: 1000;
+            background: rgba(10,15,28,0.55);
+            display: flex; align-items: center; justify-content: center;
+            animation: fadeIn .2s ease;
+        }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .modal-box {
+            background: white;
+            border-radius: 12px;
+            padding: 2.2rem 2.5rem;
+            width: 100%; max-width: 480px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+            animation: slideUp .2s ease;
+        }
+        .modal-box.modal-wide { max-width: 620px; }
+        @keyframes slideUp { from { transform: translateY(30px); opacity: 0; } to { transform: none; opacity: 1; } }
+        .modal-box h3 {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 1.35rem;
+            font-weight: 800;
+            color: var(--primary);
+            margin-bottom: 0.35rem;
+        }
+        .modal-box .modal-sub { font-size: 0.9rem; opacity: 0.6; margin-bottom: 1.5rem; }
+        .modal-actions { display: flex; gap: 0.8rem; justify-content: flex-end; margin-top: 1.5rem; }
+
+        /* Session picker list */
+        .session-list { display: flex; flex-direction: column; gap: 0.6rem; max-height: 360px; overflow-y: auto; }
+        .session-list-item {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 0.9rem 1.1rem;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .session-list-item:hover { border-color: var(--primary); background: #f0f6ff; }
+        .session-list-item.active { border-color: var(--primary); background: #eef4ff; }
+        .session-list-item .sli-name {
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 700;
+            font-size: 1rem;
+            color: var(--primary);
+            flex: 1;
+        }
+        .session-list-item .sli-meta { font-size: 0.82rem; opacity: 0.55; }
+        .session-list-item .sli-del {
+            background: none; border: none; cursor: pointer;
+            color: var(--danger); font-size: 1rem; padding: 0.2rem 0.4rem;
+            border-radius: 3px; opacity: 0.4; transition: opacity .15s;
+            flex-shrink: 0;
+        }
+        .session-list-item:hover .sli-del { opacity: 0.7; }
+        .session-list-item .sli-del:hover { opacity: 1 !important; background: #fde8e8; }
+        .session-list-empty { text-align: center; padding: 2.5rem 1rem; opacity: 0.4; font-size: 0.95rem; }
+
+        /* New session input */
+        .modal-input {
+            width: 100%;
+            padding: 0.85rem 1.1rem;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1.15rem;
+            font-weight: 600;
+            color: var(--text);
+            background: var(--surface);
+            transition: border-color .2s, box-shadow .2s;
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+        .modal-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(0,102,204,0.12);
+            background: white;
+        }
+        .modal-hint { font-size: 0.8rem; opacity: 0.45; margin-bottom: 1rem; }
+        .modal-err { color: #dc3545; font-size: 0.88rem; margin-top: 0.5rem; display: none; font-weight: 600; }
+
+        /* ── Saved Plans Tab ── */
+        .saved-plan-block {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            margin-bottom: 2.5rem;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+        .saved-plan-header {
+            background: var(--dark);
+            color: white;
+            padding: 1.2rem 1.6rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 0.6rem;
+        }
+        .saved-plan-header h3 {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 1.2rem;
+            font-weight: 800;
+            margin: 0;
+        }
+        .saved-plan-header .sph-meta {
+            font-size: 0.88rem;
+            opacity: 0.65;
+        }
+        .saved-plan-header .sph-right {
+            display: flex;
+            align-items: center;
+            gap: 0.7rem;
+            flex-shrink: 0;
+        }
+        .saved-plan-drivers {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+            padding: 0.9rem 1.6rem;
+            border-bottom: 1px solid var(--border);
+            background: #f8fafc;
+        }
+        .spd-chip {
+            padding: 0.2rem 0.7rem;
+            border-radius: 12px;
+            font-size: 0.82rem;
+            font-weight: 700;
+            color: white;
+        }
+        .saved-plan-cards {
+            padding: 1.4rem 1.6rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+            gap: 1rem;
+        }
+        .saved-empty {
+            text-align: center;
+            padding: 4rem 2rem;
+            opacity: 0.4;
+        }
+        .saved-empty .icon { font-size: 2.8rem; margin-bottom: 0.8rem; }
+        .saved-empty p { font-size: 1rem; }
+
+        @media (max-width: 768px) {
+            .tab-btn { padding: 0.7rem 1rem; font-size: 0.8rem; letter-spacing: 0; }
+            .form-grid { grid-template-columns: 1fr 1fr; }
+            .controls-row { flex-direction: column; align-items: flex-start; }
+            .page-header h1 { font-size: 1.9rem; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <div class="logo-container" onclick="window.location.href='/dashboard'">
+            <img src="/img/sm_corse_only_blue.png" alt="SM CORSE" class="logo-img">
+        </div>
+        <div class="header-right">
+            <button class="btn btn-secondary btn-sm" onclick="openSessionsPicker()">📁 Team Sessions</button>
+            <a href="/dashboard" class="back-btn">← Dashboard</a>
+        </div>
+    </header>
+
+    <div class="page-header">
+        <div>
+            <h1>🗓️ Stint Planner</h1>
+            <p>Configure your race, mark driver availability, and generate a complete stint schedule</p>
+        </div>
+        <div id="sessionPill" style="display:none;" class="session-pill">
+            <span class="save-dot" id="saveDot"></span>
+            <span id="sessionPillName">—</span>
+        </div>
+    </div>
+
+    <div class="tab-nav">
+        <button class="tab-btn active" data-tab="config"       onclick="showTab(this)">⚙️ Setup</button>
+        <button class="tab-btn"        data-tab="availability" onclick="showTab(this)">📅 Availability</button>
+        <button class="tab-btn"        data-tab="plan"         onclick="showTab(this)">📋 Stint Plan</button>
+        <button class="tab-btn"        data-tab="saved"        onclick="showTab(this)">💾 Saved Plans</button>
+    </div>
+
+    <!-- ═══ TAB 1: SETUP ═══ -->
+    <div id="tab-config" class="tab-content active">
+        <div class="card">
+            <div class="card-title">🏁 Race Configuration</div>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Race Name</label>
+                    <input type="text" id="raceName" placeholder="e.g. Spa 6 Hours">
+                </div>
+                <div class="form-group">
+                    <label>Race Date</label>
+                    <input type="date" id="raceDate">
+                </div>
+                <div class="form-group">
+                    <label>Start Time (local)</label>
+                    <input type="time" id="raceStartTime" value="14:00">
+                </div>
+                <div class="form-group">
+                    <label>Race Duration (hours)</label>
+                    <input type="number" id="raceDuration" min="0.5" max="25" step="0.5" value="6">
+                </div>
+                <div class="form-group">
+                    <label>Min Stint (minutes)</label>
+                    <input type="number" id="minStint" min="10" max="240" value="45">
+                </div>
+                <div class="form-group">
+                    <label>Max Stint (minutes)</label>
+                    <input type="number" id="maxStint" min="10" max="480" value="120">
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">👥 Drivers</div>
+            <p style="font-size:0.82rem;font-weight:600;text-transform:uppercase;letter-spacing:1px;opacity:0.6;margin-bottom:0.5rem;">
+                Racing this stint plan
+            </p>
+            <div class="drivers-list" id="driversList">
+                <span id="driversEmpty" style="opacity:0.35;font-size:0.9rem;">No drivers added yet</span>
+            </div>
+
+            <p style="font-size:0.82rem;font-weight:600;text-transform:uppercase;letter-spacing:1px;opacity:0.6;margin:1.2rem 0 0.5rem;">
+                Add from database
+            </p>
+            <div id="dbUsersList" class="db-users-list">
+                <span style="opacity:0.4;font-size:0.9rem;">Loading…</span>
+            </div>
+
+            <p style="font-size:0.82rem;font-weight:600;text-transform:uppercase;letter-spacing:1px;opacity:0.6;margin:1.2rem 0 0.5rem;">
+                Add custom name
+            </p>
+            <div class="add-driver-row">
+                <div class="form-group" style="margin:0;flex:1;">
+                    <input type="text" id="addDriverInput" placeholder="Type any name…">
+                </div>
+                <button class="btn btn-primary" onclick="addDriver()" style="margin-bottom:0;">+ Add</button>
+            </div>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;gap:1rem;">
+            <button class="btn btn-secondary" onclick="clearAll()">Clear All Data</button>
+            <button class="btn btn-primary" onclick="saveConfig()">Save & Go to Availability →</button>
+        </div>
+    </div>
+
+    <!-- ═══ TAB 2: AVAILABILITY ═══ -->
+    <div id="tab-availability" class="tab-content">
+        <div class="card">
+            <div class="card-title">📅 Driver Availability — 1-Hour Blocks</div>
+            <p style="font-size:0.95rem;opacity:0.7;margin-bottom:1.2rem;">
+                Click a cell to cycle through availability states. Each column = one race hour.
+            </p>
+            <div class="legend">
+                <div class="legend-item"><div class="legend-dot free"></div> Free</div>
+                <div class="legend-item"><div class="legend-dot inconvenient"></div> Free but inconvenient</div>
+                <div class="legend-item"><div class="legend-dot unavailable"></div> Not available</div>
+                <div class="legend-item"><div class="legend-dot unknown"></div> Unknown / unset</div>
+            </div>
+            <div id="availMsg" style="display:none;"></div>
+            <div class="grid-wrap">
+                <table class="avail-table" id="availTable">
+                    <thead></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            <div style="display:flex;gap:0.8rem;justify-content:space-between;flex-wrap:wrap;margin-top:1.2rem;">
+                <div style="display:flex;gap:0.6rem;flex-wrap:wrap;">
+                    <button class="btn btn-secondary btn-sm" onclick="setAll('free')">Set All Free</button>
+                    <button class="btn btn-secondary btn-sm" onclick="setAll('unknown')">Clear All</button>
+                </div>
+                <button class="btn btn-success" onclick="saveAvailAndNext()">Save & Go to Stint Plan →</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ TAB 3: STINT PLAN ═══ -->
+    <div id="tab-plan" class="tab-content">
+        <div class="ai-box">
+            <div class="ai-box-title">🤖 AI Stint Planner</div>
+            <p style="font-size:0.95rem;opacity:0.75;">
+                Optionally describe your situation in plain language. Leave empty to let the AI use the availability grid automatically.
+                Or click <strong>Generate from Grid</strong> for an instant algorithmic plan.
+            </p>
+            <textarea id="aiPrompt" rows="3"
+                placeholder="e.g. Alice can do the whole race, Bob needs to stop after 4 hours, Charlie prefers night stints. Make the stints roughly 90 minutes each."></textarea>
+            <div class="controls-row">
+                <button class="btn btn-ai" id="btnAI" onclick="generateAIPlan()">🤖 AI Plan</button>
+                <button class="btn btn-primary" id="btnAuto" onclick="generateAutoPlan()">⚡ Generate from Grid</button>
+                <button class="btn btn-secondary" onclick="clearPlan()">🗑️ Clear Plan</button>
+                <button class="btn btn-success" id="btnSavePlan" onclick="savePlanExplicit()" style="margin-left:auto;">💾 Save Plan</button>
+            </div>
+            <div id="aiResponse" class="ai-response"></div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">📊 Stint Timeline</div>
+            <div id="planMsg" style="display:none;"></div>
+            <div class="grid-wrap">
+                <table class="avail-table" id="planTable">
+                    <thead></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="plan-cards-section" id="cardsSection" style="display:none;">
+            <h2>Stint Schedule</h2>
+            <div class="plan-cards-grid" id="cardsGrid"></div>
+        </div>
+    </div>
+
+    <!-- ═══ TAB 4: SAVED PLANS ═══ -->
+    <div id="tab-saved" class="tab-content">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem;">
+            <div>
+                <div style="font-family:'Montserrat',sans-serif;font-size:1.6rem;font-weight:800;color:var(--primary);">💾 Saved Plans</div>
+                <p style="font-size:0.95rem;opacity:0.65;margin-top:0.3rem;">All team sessions with a generated stint schedule.</p>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="loadSavedPlans()">↻ Refresh</button>
+        </div>
+        <div id="savedPlansLoading" style="text-align:center;padding:3rem;opacity:0.5;">Loading…</div>
+        <div id="savedPlansWrap" style="display:none;"></div>
+    </div>
+</div>
+
+<!-- ═══ Sessions Picker Modal ═══ -->
+<div id="sessionsModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeSessionsPicker()">
+    <div class="modal-box modal-wide">
+        <h3>📁 Team Sessions</h3>
+        <p class="modal-sub">Load a shared planning session. Anyone on the team can open and edit any session.</p>
+
+        <div id="sessionsListWrap">
+            <div style="text-align:center;padding:2rem;opacity:0.5;">Loading…</div>
+        </div>
+
+        <div style="display:flex;gap:0.8rem;justify-content:space-between;align-items:center;margin-top:1.2rem;padding-top:1rem;border-top:1px solid var(--border);">
+            <button class="btn btn-primary btn-sm" onclick="showNewSessionForm()">+ New Session</button>
+            <button class="btn btn-secondary btn-sm" onclick="closeSessionsPicker()">Close</button>
+        </div>
+
+        <!-- Inline new-session form -->
+        <div id="newSessionForm" style="display:none;margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border);">
+            <p style="font-size:0.88rem;font-weight:600;opacity:0.7;margin-bottom:0.5rem;">NEW SESSION NAME</p>
+            <input type="text" id="newSessionName" class="modal-input"
+                   placeholder="e.g. Spa 6 Hours — March 2025"
+                   maxlength="120"
+                   onkeydown="if(event.key==='Enter')confirmNewSession()">
+            <div class="modal-hint">Examples: "Le Mans 24h", "Monza Enduro", "Bathurst 12h April"</div>
+            <div id="newSessionErr" class="modal-err"></div>
+            <div class="modal-actions" style="margin-top:0.8rem;">
+                <button class="btn btn-secondary btn-sm" onclick="hideNewSessionForm()">Cancel</button>
+                <button class="btn btn-primary btn-sm" id="btnConfirmSession" onclick="confirmNewSession()">Create</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Block Picker (fixed floating) -->
+<div id="blockPicker" class="block-picker">
+    <div class="block-picker-title" id="blockPickerTitle">Assign driver</div>
+    <div id="blockPickerDrivers"></div>
+    <div class="block-picker-sep"></div>
+    <button class="block-picker-btn" onclick="setBlockDriver(null)" style="color:#dc3545;">
+        <span class="bp-dot" style="background:#dc3545;border:1px solid #dc3545;"></span> Clear block
+    </button>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════
+const STORAGE_KEY    = 'smcorse_stint_planner_v1';
+const STORAGE_SID    = 'smcorse_stint_session_id';
+
+let currentSessionId = null;
+let saveDbDebounce   = null;
+
+let state = {
+    config: {
+        raceName: '', raceDate: '', raceStartTime: '14:00',
+        raceDurationHours: 6, minStintMinutes: 45, maxStintMinutes: 120,
+        drivers: []
+    },
+    availability: {},
+    plan: []
+};
+
+const DRIVER_COLORS = [
+    '#0066cc','#e63946','#2a9d8f','#c9a227',
+    '#f4522a','#6f42c1','#20c997','#fd7e14',
+    '#17a2b8','#e83e8c'
+];
+const AVAIL_CYCLE = { unknown: 'free', free: 'inconvenient', inconvenient: 'unavailable', unavailable: 'unknown' };
+
+let dbPeople = [];
+
+// ═══════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', async () => {
+    loadState();
+    fillForm();
+    renderDriverTags();
+    loadTeamMembers();
+
+    document.getElementById('addDriverInput').addEventListener('keydown', e => {
+        if (e.key === 'Enter') addDriver();
+    });
+
+    // Try to load saved session from DB
+    const savedId = localStorage.getItem(STORAGE_SID);
+    if (savedId) {
+        await syncSessionFromDb(parseInt(savedId));
+    }
+});
+
+function loadState() {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) state = JSON.parse(raw);
+    } catch(e) {}
+}
+
+function saveState() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {}
+}
+
+function fillForm() {
+    const c = state.config;
+    document.getElementById('raceName').value      = c.raceName || '';
+    document.getElementById('raceDate').value      = c.raceDate || '';
+    document.getElementById('raceStartTime').value = c.raceStartTime || '14:00';
+    document.getElementById('raceDuration').value  = c.raceDurationHours || 6;
+    document.getElementById('minStint').value      = c.minStintMinutes || 45;
+    document.getElementById('maxStint').value      = c.maxStintMinutes || 120;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SESSION SYNC WITH DB
+// ═══════════════════════════════════════════════════════════════
+async function syncSessionFromDb(id) {
+    try {
+        const r = await fetch(`/api/team/stint-sessions/${id}`);
+        if (!r.ok) {
+            // Session gone — clear saved ID
+            localStorage.removeItem(STORAGE_SID);
+            return;
+        }
+        const session = await r.json();
+        applySession(session);
+    } catch(e) {
+        // Network error — use localStorage state as fallback
+    }
+}
+
+function applySession(session) {
+    currentSessionId = session.id;
+    localStorage.setItem(STORAGE_SID, session.id);
+
+    state = {
+        config:       session.config       || { raceName:'', raceDate:'', raceStartTime:'14:00', raceDurationHours:6, minStintMinutes:45, maxStintMinutes:120, drivers:[] },
+        availability: session.availability || {},
+        plan:         session.plan         || []
+    };
+    saveState();
+    fillForm();
+    renderDriverTags();
+    updateSessionPill(session.name || state.config.raceName || 'Untitled');
+}
+
+function updateSessionPill(name) {
+    const pill = document.getElementById('sessionPill');
+    if (!currentSessionId) { pill.style.display = 'none'; return; }
+    pill.style.display = '';
+    document.getElementById('sessionPillName').textContent = name || 'Untitled';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// AUTO SAVE TO DB
+// ═══════════════════════════════════════════════════════════════
+async function saveToDb() {
+    // If no session yet, auto-create one using the race name
+    if (!currentSessionId) {
+        const name = state.config.raceName || 'Untitled Race';
+        try {
+            const r = await fetch('/api/team/stint-sessions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name })
+            });
+            if (!r.ok) return; // silent fail if not logged in
+            const session = await r.json();
+            currentSessionId = session.id;
+            localStorage.setItem(STORAGE_SID, session.id);
+            updateSessionPill(name);
+        } catch(e) { return; }
+    }
+
+    setSaving(true);
+    try {
+        await fetch(`/api/team/stint-sessions/${currentSessionId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name:         state.config.raceName || 'Untitled Race',
+                config:       state.config,
+                availability: state.availability,
+                plan:         state.plan
+            })
+        });
+        updateSessionPill(state.config.raceName || 'Untitled Race');
+    } catch(e) {}
+    setSaving(false);
+}
+
+function debouncedDbSave() {
+    clearTimeout(saveDbDebounce);
+    saveDbDebounce = setTimeout(saveToDb, 1200);
+}
+
+function setSaving(saving) {
+    const dot = document.getElementById('saveDot');
+    if (dot) dot.className = 'save-dot' + (saving ? ' saving' : '');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TEAM MEMBERS (DB picker)
+// ═══════════════════════════════════════════════════════════════
+async function loadTeamMembers() {
+    try {
+        const [usersRes, membersRes] = await Promise.all([
+            fetch('/api/team/drivers'),
+            fetch('/api/team/members')
+        ]);
+        const seen = new Set();
+        dbPeople = [];
+        if (usersRes.ok) {
+            const users = await usersRes.json();
+            (Array.isArray(users) ? users : []).forEach(u => {
+                const name = u.iracing_name || u.username;
+                if (name && !seen.has(name)) { seen.add(name); dbPeople.push({ name, avatar_url: u.avatar_url || null }); }
+            });
+        }
+        if (membersRes.ok) {
+            const data = await membersRes.json();
+            (data.members || []).forEach(m => {
+                if (m.name && !seen.has(m.name)) { seen.add(m.name); dbPeople.push({ name: m.name, avatar_url: null }); }
+            });
+        }
+        renderDbUsersList();
+    } catch(e) {
+        document.getElementById('dbUsersList').innerHTML = '<span style="opacity:0.4;font-size:0.9rem;">Could not load — check connection</span>';
+    }
+}
+
+function renderDbUsersList() {
+    const container = document.getElementById('dbUsersList');
+    if (dbPeople.length === 0) {
+        container.innerHTML = '<span style="opacity:0.4;font-size:0.9rem;">No team members found in database</span>';
+        return;
+    }
+    container.innerHTML = '';
+    dbPeople.forEach(person => {
+        const alreadyAdded = state.config.drivers.includes(person.name);
+        const btn = document.createElement('button');
+        btn.className = 'db-user-btn' + (alreadyAdded ? ' added' : '');
+        btn.disabled  = alreadyAdded;
+        btn.title     = alreadyAdded ? 'Already added' : `Add ${person.name}`;
+        btn.onclick   = () => addDriverByName(person.name);
+
+        const avatar = document.createElement('span');
+        if (person.avatar_url) {
+            const img = document.createElement('img');
+            img.className = 'db-avatar'; img.src = person.avatar_url; img.alt = person.name;
+            avatar.appendChild(img);
+        } else {
+            const ini = document.createElement('span');
+            ini.className = 'db-initials';
+            ini.textContent = person.name.charAt(0).toUpperCase();
+            avatar.appendChild(ini);
+        }
+        btn.appendChild(avatar);
+
+        const label = document.createElement('span');
+        label.textContent = alreadyAdded ? '✓ ' + person.name : '+ ' + person.name;
+        btn.appendChild(label);
+        container.appendChild(btn);
+    });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════════════════════════
+function showTab(btn) {
+    const tab = btn.dataset.tab;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + tab).classList.add('active');
+    if (tab === 'availability') renderAvailGrid();
+    if (tab === 'plan')         renderPlanGrid();
+    if (tab === 'saved')        loadSavedPlans();
+}
+
+function goToTab(tabName) {
+    const btn = document.querySelector(`.tab-btn[data-tab="${tabName}"]`);
+    if (btn) showTab(btn);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SESSIONS PICKER MODAL
+// ═══════════════════════════════════════════════════════════════
+async function openSessionsPicker() {
+    document.getElementById('sessionsModal').style.display = '';
+    document.getElementById('newSessionForm').style.display = 'none';
+    document.getElementById('sessionsListWrap').innerHTML = '<div style="text-align:center;padding:2rem;opacity:0.5;">Loading…</div>';
+
+    try {
+        const r = await fetch('/api/team/stint-sessions');
+        if (!r.ok) throw new Error(`${r.status}`);
+        const sessions = await r.json();
+        renderSessionsList(sessions);
+    } catch(e) {
+        document.getElementById('sessionsListWrap').innerHTML =
+            `<div style="text-align:center;padding:1.5rem;color:#dc3545;font-weight:600;">Failed to load sessions (${e.message})</div>`;
+    }
+}
+
+function closeSessionsPicker() {
+    document.getElementById('sessionsModal').style.display = 'none';
+}
+
+function renderSessionsList(sessions) {
+    const wrap = document.getElementById('sessionsListWrap');
+    if (!sessions.length) {
+        wrap.innerHTML = '<div class="session-list-empty">No team sessions yet — create one below.</div>';
+        return;
+    }
+    const html = sessions.map(s => {
+        const cfg = s.config || {};
+        const parts = [];
+        if (cfg.raceDate)          parts.push(cfg.raceDate);
+        if (cfg.raceStartTime)     parts.push(cfg.raceStartTime);
+        if (cfg.raceDurationHours) parts.push(cfg.raceDurationHours + 'h');
+        const drivers = (cfg.drivers || []).slice(0, 4).join(', ');
+        const meta = [parts.join(' · '), drivers].filter(Boolean).join(' — ') || 'No details yet';
+        const isCurrent = s.id === currentSessionId;
+        return `
+        <div class="session-list-item${isCurrent ? ' active' : ''}" onclick="loadSession(${s.id})">
+            <div style="flex:1;">
+                <div class="sli-name">${esc(s.name)}${isCurrent ? ' <span style="font-size:.75rem;opacity:.6;">(current)</span>' : ''}</div>
+                <div class="sli-meta">${esc(meta)} · ${s.updated_at ? timeAgo(s.updated_at) : ''}</div>
+            </div>
+            <button class="sli-del" onclick="event.stopPropagation(); deleteSession(${s.id}, '${esc(s.name)}')" title="Delete">🗑</button>
+        </div>`;
+    }).join('');
+    wrap.innerHTML = `<div class="session-list">${html}</div>`;
+}
+
+async function loadSession(id) {
+    try {
+        const r = await fetch(`/api/team/stint-sessions/${id}`);
+        if (!r.ok) throw new Error(`${r.status}`);
+        const session = await r.json();
+        applySession(session);
+        closeSessionsPicker();
+        goToTab('config');
+        toast(`Loaded: ${session.name}`, 'success');
+    } catch(e) {
+        toast(`Failed to load session (${e.message})`, 'error');
+    }
+}
+
+async function deleteSession(id, name) {
+    if (!confirm(`Delete session "${name}"? This cannot be undone.`)) return;
+    try {
+        const r = await fetch(`/api/team/stint-sessions/${id}`, { method: 'DELETE' });
+        if (!r.ok) throw new Error();
+        if (currentSessionId === id) {
+            currentSessionId = null;
+            localStorage.removeItem(STORAGE_SID);
+            updateSessionPill('');
+        }
+        toast('Session deleted', 'info');
+        openSessionsPicker(); // refresh list
+    } catch(e) {
+        toast('Failed to delete session', 'error');
+    }
+}
+
+function showNewSessionForm() {
+    document.getElementById('newSessionForm').style.display = '';
+    document.getElementById('newSessionName').value = '';
+    document.getElementById('newSessionErr').style.display = 'none';
+    setTimeout(() => document.getElementById('newSessionName').focus(), 50);
+}
+
+function hideNewSessionForm() {
+    document.getElementById('newSessionForm').style.display = 'none';
+}
+
+async function confirmNewSession() {
+    const name = document.getElementById('newSessionName').value.trim();
+    const errEl = document.getElementById('newSessionErr');
+    const btn   = document.getElementById('btnConfirmSession');
+    if (!name) {
+        errEl.textContent = 'Please enter a name.';
+        errEl.style.display = 'block';
+        return;
+    }
+    btn.disabled = true; btn.textContent = 'Creating…';
+    errEl.style.display = 'none';
+    try {
+        const r = await fetch('/api/team/stint-sessions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name })
+        });
+        const data = await r.json();
+        if (!r.ok) { errEl.textContent = data.error || `Error (${r.status})`; errEl.style.display = 'block'; return; }
+        // Load the new empty session
+        applySession({ id: data.id, name: data.name, config: {}, availability: {}, plan: [] });
+        closeSessionsPicker();
+        goToTab('config');
+        toast(`Created: ${name}`, 'success');
+    } catch(e) {
+        errEl.textContent = 'Network error';
+        errEl.style.display = 'block';
+    } finally {
+        btn.disabled = false; btn.textContent = 'Create';
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SETUP TAB
+// ═══════════════════════════════════════════════════════════════
+function renderDriverTags() {
+    const list  = document.getElementById('driversList');
+    const empty = document.getElementById('driversEmpty');
+    list.querySelectorAll('.driver-tag').forEach(t => t.remove());
+    const drivers = state.config.drivers;
+    if (drivers.length === 0) {
+        empty.style.display = '';
+    } else {
+        empty.style.display = 'none';
+        drivers.forEach((name, i) => {
+            const tag = document.createElement('div');
+            tag.className = 'driver-tag';
+            tag.style.background = DRIVER_COLORS[i % DRIVER_COLORS.length];
+            tag.innerHTML = `<span>${esc(name)}</span><button class="rm" onclick="removeDriver('${esc(name)}')" title="Remove">×</button>`;
+            list.appendChild(tag);
+        });
+    }
+}
+
+function addDriverByName(name) {
+    if (state.config.drivers.includes(name)) return;
+    state.config.drivers.push(name);
+    const hrs = Math.ceil(state.config.raceDurationHours || 6);
+    state.availability[name] = Array(hrs).fill('unknown');
+    renderDriverTags();
+    renderDbUsersList();
+    saveState();
+    debouncedDbSave();
+}
+
+function addDriver() {
+    const inp  = document.getElementById('addDriverInput');
+    const name = inp.value.trim();
+    if (!name) return;
+    if (state.config.drivers.includes(name)) { toast('Driver already added', 'warning'); return; }
+    addDriverByName(name);
+    inp.value = '';
+}
+
+function removeDriver(name) {
+    state.config.drivers = state.config.drivers.filter(d => d !== name);
+    delete state.availability[name];
+    renderDriverTags();
+    renderDbUsersList();
+    saveState();
+    debouncedDbSave();
+}
+
+function saveConfig() {
+    state.config.raceName          = document.getElementById('raceName').value.trim();
+    state.config.raceDate          = document.getElementById('raceDate').value;
+    state.config.raceStartTime     = document.getElementById('raceStartTime').value || '14:00';
+    state.config.raceDurationHours = parseFloat(document.getElementById('raceDuration').value) || 6;
+    state.config.minStintMinutes   = parseInt(document.getElementById('minStint').value) || 45;
+    state.config.maxStintMinutes   = parseInt(document.getElementById('maxStint').value) || 120;
+
+    const hrs = Math.ceil(state.config.raceDurationHours);
+    state.config.drivers.forEach(name => {
+        if (!state.availability[name]) {
+            state.availability[name] = Array(hrs).fill('unknown');
+        } else {
+            while (state.availability[name].length < hrs) state.availability[name].push('unknown');
+            state.availability[name] = state.availability[name].slice(0, hrs);
+        }
+    });
+
+    saveState();
+    saveToDb();
+    toast('Config saved!', 'success');
+    setTimeout(() => goToTab('availability'), 300);
+}
+
+function clearAll() {
+    if (!confirm('Reset this session\'s data (config, availability, plan)?')) return;
+    state = {
+        config: { raceName: state.config.raceName, raceDate:'', raceStartTime:'14:00', raceDurationHours:6, minStintMinutes:45, maxStintMinutes:120, drivers:[] },
+        availability: {}, plan: []
+    };
+    saveState();
+    saveToDb();
+    fillForm();
+    renderDriverTags();
+    toast('Session data reset', 'info');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// AVAILABILITY TAB
+// ═══════════════════════════════════════════════════════════════
+function hrLabel(idx) {
+    const [h, m] = (state.config.raceStartTime || '14:00').split(':').map(Number);
+    const tot = h * 60 + m + idx * 60;
+    return pad(Math.floor(tot / 60) % 24) + ':' + pad(tot % 60);
+}
+
+function renderAvailGrid() {
+    const drivers = state.config.drivers;
+    const hrs     = Math.ceil(state.config.raceDurationHours || 6);
+    const msg     = document.getElementById('availMsg');
+    if (drivers.length === 0) {
+        msg.className = 'msg warning';
+        msg.textContent = 'No drivers configured — go to Setup to add drivers first.';
+        msg.style.display = 'block';
+        document.getElementById('availTable').querySelector('thead').innerHTML = '';
+        document.getElementById('availTable').querySelector('tbody').innerHTML = '';
+        return;
+    }
+    msg.style.display = 'none';
+    drivers.forEach(name => {
+        if (!state.availability[name]) state.availability[name] = Array(hrs).fill('unknown');
+        while (state.availability[name].length < hrs) state.availability[name].push('unknown');
+    });
+    let head = '<tr><th class="col-driver">Driver</th>';
+    for (let h = 0; h < hrs; h++) head += `<th>H+${h}<br><small>${hrLabel(h)}</small></th>`;
+    head += '</tr>';
+    document.getElementById('availTable').querySelector('thead').innerHTML = head;
+    let body = '';
+    drivers.forEach(name => {
+        const avail = state.availability[name];
+        body += `<tr><td class="col-driver">${esc(name)}</td>`;
+        for (let h = 0; h < hrs; h++) {
+            const st = avail[h] || 'unknown';
+            body += `<td><div class="avail-cell ${st}" data-driver="${esc(name)}" data-hour="${h}" onclick="toggleCell(this)" title="${esc(name)} — ${hrLabel(h)}: ${st}"></div></td>`;
+        }
+        body += '</tr>';
+    });
+    document.getElementById('availTable').querySelector('tbody').innerHTML = body;
+}
+
+function toggleCell(el) {
+    const name = el.dataset.driver;
+    const h    = parseInt(el.dataset.hour);
+    if (!state.availability[name]) return;
+    const next = AVAIL_CYCLE[state.availability[name][h] || 'unknown'] || 'unknown';
+    state.availability[name][h] = next;
+    el.className = 'avail-cell ' + next;
+    el.title = `${name} — ${hrLabel(h)}: ${next}`;
+    saveState();
+    debouncedDbSave();
+}
+
+function setAll(val) {
+    const hrs = Math.ceil(state.config.raceDurationHours || 6);
+    state.config.drivers.forEach(name => { state.availability[name] = Array(hrs).fill(val); });
+    renderAvailGrid();
+    saveState();
+    saveToDb();
+}
+
+function saveAvailAndNext() {
+    saveState();
+    saveToDb();
+    toast('Availability saved!', 'success');
+    setTimeout(() => goToTab('plan'), 300);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PLAN TAB
+// ═══════════════════════════════════════════════════════════════
+function numBlocks() {
+    return Math.ceil((state.config.raceDurationHours || 6) * 60 / (state.config.minStintMinutes || 45));
+}
+
+function blockLabel(idx) {
+    const mins = state.config.minStintMinutes || 45;
+    const [h, m] = (state.config.raceStartTime || '14:00').split(':').map(Number);
+    const tot = h * 60 + m + idx * mins;
+    return pad(Math.floor(tot / 60) % 24) + ':' + pad(tot % 60);
+}
+
+function renderPlanGrid() {
+    const drivers = state.config.drivers;
+    const nb      = numBlocks();
+    if (drivers.length === 0) {
+        document.getElementById('planTable').querySelector('thead').innerHTML = '';
+        document.getElementById('planTable').querySelector('tbody').innerHTML =
+            '<tr><td class="col-driver" style="padding:2rem;white-space:normal;opacity:0.5;">No drivers configured — set up your race in the Setup tab first.</td></tr>';
+        document.getElementById('cardsSection').style.display = 'none';
+        return;
+    }
+    const colorMap = {};
+    drivers.forEach(d => { colorMap[d] = {}; });
+    (state.plan || []).forEach(stint => {
+        const color = DRIVER_COLORS[drivers.indexOf(stint.driver) % DRIVER_COLORS.length];
+        for (let b = stint.startBlock; b <= stint.endBlock; b++) colorMap[stint.driver][b] = color;
+    });
+    let head = '<tr><th class="col-driver">Driver</th>';
+    for (let b = 0; b < nb; b++) head += `<th>S${b+1}<br><small>${blockLabel(b)}</small></th>`;
+    head += '</tr>';
+    document.getElementById('planTable').querySelector('thead').innerHTML = head;
+
+    // ── Merged overview row ──────────────────────────────────────
+    let overviewRow = '<tr><td class="col-driver" style="font-family:\'Montserrat\',sans-serif;font-weight:800;font-size:0.8rem;letter-spacing:.5px;">PLAN</td>';
+    if (state.plan && state.plan.length > 0) {
+        let covered = 0;
+        state.plan.forEach((stint, i) => {
+            // Fill any gap before this stint
+            if (stint.startBlock > covered) {
+                const gap = stint.startBlock - covered;
+                overviewRow += `<td colspan="${gap}"><div class="plan-cell empty" style="height:52px;" onclick="showBlockPicker(this,${covered})" title="Unassigned"></div></td>`;
+                covered = stint.startBlock;
+            }
+            const span  = stint.endBlock - stint.startBlock + 1;
+            const color = DRIVER_COLORS[drivers.indexOf(stint.driver) % DRIVER_COLORS.length];
+            const mins  = state.config.minStintMinutes || 45;
+            const durMin = span * mins;
+            const durStr = durMin >= 60 ? `${Math.floor(durMin/60)}h${durMin%60?durMin%60+'m':''}` : `${durMin}m`;
+            overviewRow += `<td colspan="${span}" style="padding:0;">
+                <div style="background:${color};height:52px;display:flex;flex-direction:column;align-items:center;
+                     justify-content:center;color:white;font-family:'Montserrat',sans-serif;font-weight:700;
+                     font-size:0.78rem;padding:0 4px;overflow:hidden;cursor:pointer;transition:filter .12s;"
+                     onclick="showBlockPicker(this,${stint.startBlock})"
+                     onmouseover="this.style.filter='brightness(.82)'" onmouseout="this.style.filter=''"
+                     title="Stint ${i+1}: ${esc(stint.driver)} · ${durStr}">
+                    <span style="opacity:.7;font-size:.65rem;">Stint ${i+1}</span>
+                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:${span*56}px">${esc(stint.driver)}</span>
+                    <span style="opacity:.65;font-size:.65rem;">${durStr}</span>
+                </div>
+            </td>`;
+            covered = stint.endBlock + 1;
+        });
+        // Fill remaining blocks
+        if (covered < nb) {
+            overviewRow += `<td colspan="${nb - covered}"><div class="plan-cell empty" style="height:52px;" onclick="showBlockPicker(this,${covered})" title="Unassigned"></div></td>`;
+        }
+    } else {
+        overviewRow += `<td colspan="${nb}"><div class="plan-cell empty" style="height:52px;display:flex;align-items:center;justify-content:center;opacity:.35;font-size:.85rem;">No plan generated yet</div></td>`;
+    }
+    overviewRow += '</tr>';
+
+    // ── Per-driver editable rows ─────────────────────────────────
+    let body = overviewRow;
+    drivers.forEach(name => {
+        body += `<tr><td class="col-driver">${esc(name)}</td>`;
+        for (let b = 0; b < nb; b++) {
+            const color = colorMap[name][b];
+            body += color
+                ? `<td><div class="plan-cell" style="background:${color};" onclick="showBlockPicker(this,${b})" title="Click to reassign — ${esc(name)}: ${blockLabel(b)}→${blockLabel(b+1)}"></div></td>`
+                : `<td><div class="plan-cell empty" onclick="showBlockPicker(this,${b})" title="Click to assign a driver"></div></td>`;
+        }
+        body += '</tr>';
+    });
+    document.getElementById('planTable').querySelector('tbody').innerHTML = body;
+    renderStintCards();
+}
+
+function renderStintCards() {
+    const section = document.getElementById('cardsSection');
+    const grid    = document.getElementById('cardsGrid');
+    if (!state.plan || state.plan.length === 0) { section.style.display = 'none'; return; }
+    section.style.display = 'block';
+    const mins = state.config.minStintMinutes || 45;
+    grid.innerHTML = state.plan.map((stint, i) => {
+        const dIdx   = state.config.drivers.indexOf(stint.driver);
+        const color  = DRIVER_COLORS[dIdx % DRIVER_COLORS.length];
+        const durMin = (stint.endBlock - stint.startBlock + 1) * mins;
+        const durStr = durMin >= 60 ? `${Math.floor(durMin/60)}h ${durMin%60 ? durMin%60+'m' : ''}`.trim() : `${durMin}m`;
+        const badgeClass = stint.availType === 'inconvenient' ? 'inconvenient' : 'free';
+        const badgeLabel = stint.availType === 'inconvenient' ? 'Inconvenient' : 'Free';
+        return `
+        <div class="stint-card" style="border-left-color:${color}">
+            <div class="stint-num">Stint ${i + 1}</div>
+            <div class="stint-driver" style="color:${color}">${esc(stint.driver)}</div>
+            <div class="stint-time">⏰ ${stint.startTime} → ${stint.endTime}</div>
+            <div class="stint-dur">Duration: ${durStr}</div>
+            ${stint.availType ? `<span class="avail-badge ${badgeClass}">${badgeLabel}</span>` : ''}
+        </div>`;
+    }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// AUTO-PLAN (Algorithmic)
+// ═══════════════════════════════════════════════════════════════
+function generateAutoPlan() {
+    const { drivers, minStintMinutes, maxStintMinutes } = state.config;
+    if (drivers.length === 0) { toast('No drivers configured!', 'error'); return; }
+    const nb        = numBlocks();
+    const maxBlocks = Math.max(1, Math.floor((maxStintMinutes || 120) / (minStintMinutes || 45)));
+    const stintCounts = {};
+    drivers.forEach(d => { stintCounts[d] = 0; });
+
+    function score(driver, blockIdx) {
+        const blockMins = minStintMinutes || 45;
+        const hrStart = Math.floor((blockIdx * blockMins) / 60);
+        const hrEnd   = Math.min(Math.floor(((blockIdx + 1) * blockMins - 1) / 60), (state.availability[driver] || []).length - 1);
+        let worst = 3;
+        const avail = state.availability[driver] || [];
+        for (let h = hrStart; h <= hrEnd; h++) {
+            const v = {free:3, unknown:2, inconvenient:1, unavailable:0}[avail[h] || 'unknown'] ?? 0;
+            if (v < worst) worst = v;
+        }
+        return worst;
+    }
+
+    const plan = [];
+    let b = 0, guard = 0;
+    while (b < nb && guard++ < 500) {
+        // Prefer doubles: rank drivers who can do at least 2 consecutive blocks higher
+        let ranked = drivers.map(d => ({
+            name: d,
+            sc: score(d, b),
+            cnt: stintCounts[d],
+            canDouble: b + 1 < nb && score(d, b + 1) > 0
+        }))
+            .filter(d => d.sc > 0)
+            .sort((a, x) => {
+                if (a.canDouble !== x.canDouble) return x.canDouble ? 1 : -1; // prefer doubles
+                if (x.sc !== a.sc) return x.sc - a.sc;
+                return a.cnt - x.cnt;
+            });
+        if (ranked.length === 0) {
+            ranked = drivers.map(d => ({ name: d, sc: 0, cnt: stintCounts[d], canDouble: false })).sort((a, x) => a.cnt - x.cnt);
+        }
+        const chosen = ranked[0].name;
+        let end = b;
+        while (end + 1 < nb && (end - b + 1) < maxBlocks && score(chosen, end + 1) > 0) end++;
+        let worstSc = 3;
+        for (let i = b; i <= end; i++) { const s = score(chosen, i); if (s < worstSc) worstSc = s; }
+        plan.push({ driver: chosen, startBlock: b, endBlock: end, startTime: blockLabel(b), endTime: blockLabel(end + 1 <= nb ? end + 1 : end), availType: worstSc >= 2 ? 'free' : 'inconvenient' });
+        stintCounts[chosen]++;
+        b = end + 1;
+    }
+
+    state.plan = plan;
+    saveState(); saveToDb(); renderPlanGrid();
+    const msg = document.getElementById('planMsg');
+    msg.className = 'msg success';
+    msg.textContent = `Plan generated: ${plan.length} stints across ${drivers.length} driver${drivers.length !== 1 ? 's' : ''}.`;
+    msg.style.display = 'block';
+    toast(`${plan.length} stints generated!`, 'success');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// AI PLAN
+// ═══════════════════════════════════════════════════════════════
+async function generateAIPlan() {
+    const btn     = document.getElementById('btnAI');
+    const respDiv = document.getElementById('aiResponse');
+    const prompt  = document.getElementById('aiPrompt').value.trim();
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Generating…';
+    respDiv.style.display = 'none';
+    try {
+        const res = await fetch('/api/team/stint-planner/ai-plan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userPrompt: prompt, config: state.config, availability: state.availability, blockMinutes: state.config.minStintMinutes || 45, numBlocks: numBlocks() })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Server error');
+        if (data.plan && data.plan.length > 0) {
+            state.plan = data.plan;
+            saveState(); saveToDb(); renderPlanGrid();
+            respDiv.style.display = 'block';
+            respDiv.textContent   = data.explanation || 'Plan generated.';
+            const msg = document.getElementById('planMsg');
+            msg.className = 'msg success'; msg.textContent = `AI plan ready: ${data.plan.length} stints.`; msg.style.display = 'block';
+            toast('AI plan generated!', 'success');
+        } else {
+            respDiv.style.display = 'block';
+            respDiv.textContent   = data.explanation || data.message || 'AI returned an empty plan — try rephrasing.';
+        }
+    } catch(e) {
+        respDiv.style.display = 'block'; respDiv.textContent = 'Error: ' + e.message;
+        toast('AI plan failed: ' + e.message, 'error');
+    } finally {
+        btn.disabled = false; btn.innerHTML = '🤖 AI Plan';
+    }
+}
+
+function clearPlan() {
+    state.plan = [];
+    saveState(); saveToDb(); renderPlanGrid();
+    document.getElementById('planMsg').style.display    = 'none';
+    document.getElementById('aiResponse').style.display = 'none';
+    toast('Plan cleared', 'info');
+}
+
+async function savePlanExplicit() {
+    const btn = document.getElementById('btnSavePlan');
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+    saveState();
+    await saveToDb();
+    btn.disabled = false;
+    btn.innerHTML = '💾 Save Plan';
+    toast('Plan saved!', 'success');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SAVED PLANS TAB
+// ═══════════════════════════════════════════════════════════════
+async function loadSavedPlans() {
+    const loading = document.getElementById('savedPlansLoading');
+    const wrap    = document.getElementById('savedPlansWrap');
+    loading.style.display = '';
+    wrap.style.display    = 'none';
+
+    try {
+        const r = await fetch('/api/team/stint-sessions');
+        if (!r.ok) throw new Error(`${r.status}`);
+        const sessions = await r.json();
+
+        // Only show sessions that have a generated plan
+        const withPlan = sessions.filter(s => s.plan && Array.isArray(s.plan) && s.plan.length > 0);
+
+        loading.style.display = 'none';
+        wrap.style.display    = '';
+
+        if (withPlan.length === 0) {
+            wrap.innerHTML = `
+                <div class="saved-empty">
+                    <div class="icon">📋</div>
+                    <p>No saved plans yet — generate a plan on the Stint Plan tab then click <strong>Save Plan</strong>.</p>
+                </div>`;
+            return;
+        }
+
+        wrap.innerHTML = withPlan.map(s => renderSavedPlanBlock(s)).join('');
+    } catch(e) {
+        loading.style.display = 'none';
+        wrap.style.display    = '';
+        wrap.innerHTML = `<div class="saved-empty"><p style="color:#dc3545;">Failed to load plans (${e.message})</p></div>`;
+    }
+}
+
+function renderSavedPlanBlock(session) {
+    const cfg     = session.config || {};
+    const drivers = cfg.drivers   || [];
+    const plan    = session.plan  || [];
+    const mins    = cfg.minStintMinutes || 45;
+
+    const metaParts = [];
+    if (cfg.raceDate)          metaParts.push(cfg.raceDate);
+    if (cfg.raceStartTime)     metaParts.push(cfg.raceStartTime);
+    if (cfg.raceDurationHours) metaParts.push(cfg.raceDurationHours + 'h race');
+
+    const driverChips = drivers.map((d, i) =>
+        `<span class="spd-chip" style="background:${DRIVER_COLORS[i % DRIVER_COLORS.length]}">${esc(d)}</span>`
+    ).join('');
+
+    const cards = plan.map((stint, i) => {
+        const dIdx   = drivers.indexOf(stint.driver);
+        const color  = DRIVER_COLORS[dIdx >= 0 ? dIdx % DRIVER_COLORS.length : i % DRIVER_COLORS.length];
+        const durMin = (stint.endBlock - stint.startBlock + 1) * mins;
+        const durStr = durMin >= 60 ? `${Math.floor(durMin/60)}h ${durMin%60 ? durMin%60+'m':''}`.trim() : `${durMin}m`;
+        const badgeClass = stint.availType === 'inconvenient' ? 'inconvenient' : 'free';
+        return `
+        <div class="stint-card" style="border-left-color:${color}">
+            <div class="stint-num">Stint ${i + 1}</div>
+            <div class="stint-driver" style="color:${color}">${esc(stint.driver)}</div>
+            <div class="stint-time">⏰ ${stint.startTime} → ${stint.endTime}</div>
+            <div class="stint-dur">Duration: ${durStr}</div>
+            ${stint.availType ? `<span class="avail-badge ${badgeClass}">${stint.availType === 'inconvenient' ? 'Inconvenient' : 'Free'}</span>` : ''}
+        </div>`;
+    }).join('');
+
+    const updated = session.updated_at ? `Updated ${timeAgo(session.updated_at)}` : '';
+
+    return `
+    <div class="saved-plan-block">
+        <div class="saved-plan-header">
+            <div>
+                <h3>${esc(session.name)}</h3>
+                <div class="sph-meta">${metaParts.join(' · ')}${metaParts.length && updated ? ' · ' : ''}${updated}</div>
+            </div>
+            <div class="sph-right">
+                <span style="font-size:.82rem;opacity:.6;">${plan.length} stint${plan.length !== 1 ? 's' : ''}</span>
+                <button class="btn btn-secondary btn-sm" onclick="loadSession(${session.id}); goToTab('plan');">✏️ Edit</button>
+            </div>
+        </div>
+        ${driverChips ? `<div class="saved-plan-drivers">${driverChips}</div>` : ''}
+        <div class="saved-plan-cards">${cards}</div>
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MANUAL BLOCK EDITING
+// ═══════════════════════════════════════════════════════════════
+let _pickerBlock = null;
+
+function showBlockPicker(cellEl, blockIdx) {
+    _pickerBlock = blockIdx;
+
+    // Build driver buttons
+    const driversDiv = document.getElementById('blockPickerDrivers');
+    driversDiv.innerHTML = state.config.drivers.length === 0
+        ? '<div style="padding:.4rem .6rem;opacity:.5;font-size:.9rem;">No drivers in setup</div>'
+        : state.config.drivers.map((d, i) => {
+            const color = DRIVER_COLORS[i % DRIVER_COLORS.length];
+            return `<button class="block-picker-btn" onclick="setBlockDriver('${esc(d)}')">
+                <span class="bp-dot" style="background:${color};"></span>${esc(d)}
+            </button>`;
+        }).join('');
+
+    // Label with block time
+    document.getElementById('blockPickerTitle').textContent =
+        `${blockLabel(blockIdx)} – ${blockLabel(blockIdx + 1)}`;
+
+    // Position near cell (fixed, stays on screen)
+    const rect   = cellEl.getBoundingClientRect();
+    const picker = document.getElementById('blockPicker');
+    picker.style.display = 'block'; // briefly visible to measure
+    picker.classList.add('open');
+
+    let left = rect.left;
+    let top  = rect.bottom + 6;
+    if (left + picker.offsetWidth > window.innerWidth - 8)  left = window.innerWidth - picker.offsetWidth - 8;
+    if (top  + picker.offsetHeight > window.innerHeight - 8) top  = rect.top - picker.offsetHeight - 6;
+    picker.style.left = left + 'px';
+    picker.style.top  = top  + 'px';
+
+    setTimeout(() => document.addEventListener('click', _hidePicker, { once: true }), 0);
+}
+
+function _hidePicker(e) {
+    const picker = document.getElementById('blockPicker');
+    if (picker && picker.contains(e.target)) {
+        // Click was inside picker — re-attach listener
+        setTimeout(() => document.addEventListener('click', _hidePicker, { once: true }), 0);
+        return;
+    }
+    picker.classList.remove('open');
+    _pickerBlock = null;
+}
+
+function setBlockDriver(driver) {
+    if (_pickerBlock === null) return;
+    const nb = numBlocks();
+
+    // Flatten current plan to a per-block map
+    const blocks = {};
+    (state.plan || []).forEach(stint => {
+        for (let b = stint.startBlock; b <= stint.endBlock; b++) blocks[b] = stint.driver;
+    });
+
+    if (driver === null) delete blocks[_pickerBlock];
+    else                  blocks[_pickerBlock] = driver;
+
+    state.plan = blocksToStints(blocks, nb);
+    saveState();
+    debouncedDbSave();
+    renderPlanGrid();
+
+    document.getElementById('blockPicker').classList.remove('open');
+    _pickerBlock = null;
+}
+
+function blocksToStints(blocks, nb) {
+    const plan = [];
+    const mins = state.config.minStintMinutes || 45;
+    let i = 0;
+    while (i < nb) {
+        const driver = blocks[i];
+        if (!driver) { i++; continue; }
+        let end = i;
+        while (end + 1 < nb && blocks[end + 1] === driver) end++;
+
+        // Determine availType from availability grid
+        let worstSc = 3;
+        const avail = state.availability[driver] || [];
+        for (let b = i; b <= end; b++) {
+            const hrStart = Math.floor((b * mins) / 60);
+            const hrEnd   = Math.min(Math.floor(((b + 1) * mins - 1) / 60), avail.length - 1);
+            for (let h = hrStart; h <= hrEnd; h++) {
+                const v = { free: 3, unknown: 2, inconvenient: 1, unavailable: 0 }[avail[h] || 'unknown'] ?? 2;
+                if (v < worstSc) worstSc = v;
+            }
+        }
+        plan.push({
+            driver,
+            startBlock: i,
+            endBlock:   end,
+            startTime:  blockLabel(i),
+            endTime:    blockLabel(end + 1 <= nb ? end + 1 : end),
+            availType:  worstSc >= 2 ? 'free' : 'inconvenient'
+        });
+        i = end + 1;
+    }
+    return plan;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════════════════════
+function pad(n) { return String(n).padStart(2, '0'); }
+function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+}
+function timeAgo(dateStr) {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    if (diff < 60000)    return 'just now';
+    if (diff < 3600000)  return Math.floor(diff/60000) + ' min ago';
+    if (diff < 86400000) return Math.floor(diff/3600000) + 'h ago';
+    return Math.floor(diff/86400000) + 'd ago';
+}
+function toast(msg, type = 'info') {
+    const prev = document.getElementById('__toast');
+    if (prev) prev.remove();
+    const el = document.createElement('div');
+    el.id = '__toast';
+    const bg = { success:'#28a745', error:'#dc3545', warning:'#e6a817', info:'#0066cc' }[type] || '#0066cc';
+    el.style.cssText = `position:fixed;bottom:2rem;right:2rem;z-index:9999;background:${bg};color:white;
+        padding:.75rem 1.4rem;border-radius:8px;font-family:'Montserrat',sans-serif;font-weight:600;
+        box-shadow:0 4px 16px rgba(0,0,0,.22);animation:__slide .3s ease`;
+    el.textContent = msg;
+    if (!document.getElementById('__toastStyle')) {
+        const s = document.createElement('style');
+        s.id = '__toastStyle';
+        s.textContent = '@keyframes __slide{from{transform:translateX(80px);opacity:0}to{transform:none;opacity:1}}';
+        document.head.appendChild(s);
+    }
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 3200);
+}
+</script>
+</body>
+</html>

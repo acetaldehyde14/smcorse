@@ -83,6 +83,10 @@ app.get('/dashboard', requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
 });
 
+app.get('/settings', requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'settings.html'));
+});
+
 app.post('/api/signup', async (req, res) => {
   const { email, password, name } = req.body;
 
@@ -259,6 +263,128 @@ app.use('/api/iracing', iracingRoutes);
 
 // Serve uploaded files (protected)
 app.use('/uploads', requireAuth, express.static(path.join(__dirname, 'uploads')));
+
+// ============================================
+// ADMIN ROUTES
+// ============================================
+
+const requireAdmin = async (req, res, next) => {
+  if (!req.session.userId) return res.redirect('/');
+  try {
+    const result = await query('SELECT is_admin FROM users WHERE id = $1', [req.session.userId]);
+    if (result.rows[0]?.is_admin) return next();
+    res.status(403).sendFile(path.join(__dirname, 'public', 'index.html'));
+  } catch (e) {
+    res.status(500).json({ error: 'Auth check failed' });
+  }
+};
+
+app.get('/admin', requireAdmin, (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+// Stats overview
+app.get('/api/admin/stats', requireAdmin, async (req, res) => {
+  try {
+    const [users, sessions, laps, races, teamMembers] = await Promise.all([
+      query('SELECT COUNT(*) FROM users'),
+      query('SELECT COUNT(*) FROM sessions'),
+      query('SELECT COUNT(*) FROM laps'),
+      query('SELECT COUNT(*) FROM races'),
+      query('SELECT COUNT(*) FROM team_members'),
+    ]);
+    res.json({
+      users: parseInt(users.rows[0].count),
+      sessions: parseInt(sessions.rows[0].count),
+      laps: parseInt(laps.rows[0].count),
+      races: parseInt(races.rows[0].count),
+      teamMembers: parseInt(teamMembers.rows[0].count),
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// User management
+app.get('/api/admin/users', requireAdmin, async (req, res) => {
+  try {
+    const result = await query(
+      'SELECT id, username, email, is_admin, created_at, last_login FROM users ORDER BY created_at DESC'
+    );
+    res.json(result.rows);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.patch('/api/admin/users/:id/admin', requireAdmin, async (req, res) => {
+  const { is_admin } = req.body;
+  if (parseInt(req.params.id) === req.session.userId) {
+    return res.status(400).json({ error: 'Cannot change your own admin status' });
+  }
+  try {
+    await query('UPDATE users SET is_admin = $1 WHERE id = $2', [!!is_admin, req.params.id]);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/api/admin/users/:id', requireAdmin, async (req, res) => {
+  if (parseInt(req.params.id) === req.session.userId) {
+    return res.status(400).json({ error: 'Cannot delete your own account' });
+  }
+  try {
+    await query('DELETE FROM users WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Race management
+app.get('/api/admin/races', requireAdmin, async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT r.id, r.name, r.status, r.created_at,
+              (SELECT COUNT(*) FROM race_roster WHERE race_id = r.id) AS driver_count
+       FROM races r ORDER BY r.created_at DESC`
+    );
+    res.json(result.rows);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/api/admin/races/:id', requireAdmin, async (req, res) => {
+  try {
+    await query('DELETE FROM races WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Team members management
+app.get('/api/admin/team', requireAdmin, async (req, res) => {
+  try {
+    const result = await query(
+      'SELECT id, name, role, iracing_name, discord_id, telegram_chat_id, created_at FROM team_members ORDER BY name'
+    );
+    res.json(result.rows);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/api/admin/team/:id', requireAdmin, async (req, res) => {
+  try {
+    await query('DELETE FROM team_members WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 
 // ============================================
 // HEALTH CHECK & ERROR HANDLING

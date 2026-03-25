@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live Race Tracker - SM CORSE</title>
+    <title>Race Control - SM CORSE</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
@@ -43,10 +43,8 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
             border-bottom: 2px solid var(--border);
         }
-
         .logo-container { display: flex; align-items: center; gap: 1rem; cursor: pointer; }
         .logo-img { height: 50px; width: auto; }
-
         .back-btn {
             padding: 0.7rem 1.8rem;
             border: 2px solid var(--primary);
@@ -58,17 +56,20 @@
             cursor: pointer;
             text-transform: uppercase;
             letter-spacing: 1px;
-            transition: all 0.3s ease;
+            transition: all 0.3s;
             border-radius: 4px;
             text-decoration: none;
         }
         .back-btn:hover { background: var(--primary); color: white; }
 
+        /* ── Page header ── */
         .page-header {
-            margin-bottom: 2rem;
             display: flex;
             justify-content: space-between;
-            align-items: center;
+            align-items: flex-start;
+            margin-bottom: 2.5rem;
+            flex-wrap: wrap;
+            gap: 1rem;
         }
         .page-header h1 {
             font-family: 'Montserrat', sans-serif;
@@ -76,713 +77,1043 @@
             color: var(--primary);
             font-weight: 800;
         }
-        .page-header p { font-size: 1.2rem; color: var(--text); opacity: 0.8; }
+        .page-header p { font-size: 1.1rem; opacity: 0.7; margin-top: 0.3rem; }
 
+        /* ── Buttons ── */
         .btn {
-            padding: 0.8rem 1.8rem;
+            padding: 0.7rem 1.6rem;
             border: none;
+            border-radius: 4px;
             font-family: 'Montserrat', sans-serif;
             font-weight: 600;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             cursor: pointer;
             text-transform: uppercase;
             letter-spacing: 1px;
-            border-radius: 4px;
-            transition: all 0.3s ease;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
         }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .btn-primary { background: var(--primary); color: white; }
-        .btn-primary:hover { background: var(--primary-dark); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,102,204,0.3); }
+        .btn-primary:hover:not(:disabled) { background: var(--primary-dark); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,102,204,.3); }
         .btn-success { background: var(--success); color: white; }
-        .btn-success:hover { background: #218838; }
+        .btn-success:hover:not(:disabled) { background: #1e7e34; transform: translateY(-2px); }
         .btn-danger { background: var(--danger); color: white; }
-        .btn-danger:hover { background: #c82333; }
-        .btn-outline {
-            background: transparent;
-            border: 2px solid var(--primary);
-            color: var(--primary);
-        }
-        .btn-outline:hover { background: var(--primary); color: white; }
-        .btn-sm { padding: 0.5rem 1rem; font-size: 0.8rem; }
+        .btn-danger:hover:not(:disabled) { background: #c82333; }
+        .btn-outline { background: transparent; border: 2px solid var(--primary); color: var(--primary); }
+        .btn-outline:hover:not(:disabled) { background: var(--primary); color: white; }
+        .btn-dark { background: rgba(255,255,255,0.12); color: white; border: 1px solid rgba(255,255,255,0.25); }
+        .btn-dark:hover:not(:disabled) { background: rgba(255,255,255,0.22); }
+        .btn-sm { padding: 0.45rem 1rem; font-size: 0.78rem; }
 
-        /* Live Status Panel */
-        .live-panel {
-            background: linear-gradient(135deg, var(--dark), #1a2332);
-            padding: 2rem;
-            border-radius: 12px;
-            margin-bottom: 2rem;
-            color: white;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
-        }
-        .live-panel h2 {
+        /* ── Section headings ── */
+        .section-heading {
             font-family: 'Montserrat', sans-serif;
-            font-size: 1.4rem;
-            margin-bottom: 1.5rem;
+            font-size: 1.1rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--text);
+            opacity: 0.5;
+            margin-bottom: 1.2rem;
             display: flex;
             align-items: center;
-            gap: 0.7rem;
+            gap: 0.6rem;
+        }
+        .section-heading::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border);
+        }
+
+        /* ═══════════════════════════════════════
+           ACTIVE / LIVE RACE CARDS
+        ═══════════════════════════════════════ */
+        #liveSection { margin-bottom: 3rem; }
+
+        .live-card {
+            background: linear-gradient(135deg, #0a1628, #0d1f3c);
+            border-radius: 12px;
+            padding: 2rem;
+            color: white;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+            margin-bottom: 1.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+        .live-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--success), #00e676);
+        }
+
+        .live-card-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+            gap: 0.8rem;
+        }
+        .live-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(40,167,69,0.2);
+            border: 1px solid rgba(40,167,69,0.5);
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+            font-family: 'Montserrat', sans-serif;
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            color: #4ade80;
         }
         .live-dot {
-            width: 12px; height: 12px;
-            background: var(--danger);
+            width: 8px; height: 8px;
             border-radius: 50%;
-            animation: pulse 1.5s infinite;
+            background: #4ade80;
+            animation: pulse 1.4s infinite;
         }
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.4; }
-        }
-        .live-dot.active { background: var(--success); }
+        @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(.8)} }
 
-        .live-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1.5rem;
-        }
-        .live-stat {
-            text-align: center;
-            padding: 1rem;
-            background: rgba(255,255,255,0.05);
-            border-radius: 8px;
-            border: 1px solid rgba(255,255,255,0.1);
-        }
-        .live-stat-value {
+        .live-race-name {
             font-family: 'Montserrat', sans-serif;
             font-size: 1.8rem;
             font-weight: 800;
-            color: var(--accent);
-            margin-bottom: 0.3rem;
+            line-height: 1.1;
+        }
+        .live-track { opacity: 0.55; font-size: 1rem; margin-top: 0.2rem; }
+        .live-elapsed { font-family: 'Montserrat', sans-serif; font-size: 0.9rem; opacity: 0.6; }
+
+        .live-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .live-stat {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            padding: 1rem 1.2rem;
         }
         .live-stat-label {
-            font-size: 0.85rem;
+            font-size: 0.72rem;
             text-transform: uppercase;
             letter-spacing: 1px;
-            opacity: 0.7;
+            opacity: 0.55;
+            margin-bottom: 0.4rem;
+            font-family: 'Montserrat', sans-serif;
         }
-
-        /* Sections */
-        .section {
-            background: white;
-            padding: 2rem;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-            margin-bottom: 2rem;
-        }
-        .section h3 {
+        .live-stat-value {
             font-family: 'Montserrat', sans-serif;
             font-size: 1.5rem;
-            color: var(--primary);
-            margin-bottom: 1.5rem;
-            font-weight: 700;
+            font-weight: 800;
+            color: var(--accent);
+            line-height: 1;
+        }
+        .live-stat-value.driver { color: #4ade80; font-size: 1.3rem; }
+        .live-stat-sub { font-size: 0.8rem; opacity: 0.5; margin-top: 0.2rem; }
+
+        /* Fuel bar */
+        .fuel-bar-wrap { margin-top: 0.5rem; }
+        .fuel-bar-bg {
+            height: 6px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 0.3rem;
+        }
+        .fuel-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--success), #00e676);
+            border-radius: 3px;
+            transition: width 0.5s ease;
+        }
+        .fuel-bar-fill.low { background: linear-gradient(90deg, #ff6b6b, var(--danger)); }
+
+        .live-actions {
+            display: flex;
+            gap: 0.7rem;
+            flex-wrap: wrap;
+            padding-top: 1.2rem;
+            border-top: 1px solid rgba(255,255,255,0.08);
         }
 
-        /* Race List */
-        .race-card {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 1.2rem;
-            border: 2px solid var(--border);
-            border-radius: 8px;
-            margin-bottom: 0.8rem;
-            transition: all 0.3s ease;
+        /* ═══════════════════════════════════════
+           ALL RACES GRID
+        ═══════════════════════════════════════ */
+        .races-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.2rem;
+            margin-bottom: 3rem;
         }
-        .race-card:hover { border-color: var(--primary); }
-        .race-card.active { border-color: var(--success); background: #f0fff4; }
-        .race-card-info { flex: 1; }
+
+        .race-card {
+            background: white;
+            border-radius: 8px;
+            padding: 1.4rem 1.5rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+            border-left: 4px solid var(--border);
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        .race-card:hover { transform: translateY(-3px); box-shadow: 0 6px 18px rgba(0,102,204,.12); border-left-color: var(--primary); }
+        .race-card.is-active { border-left-color: var(--success); }
+        .race-card.is-ended  { opacity: 0.65; }
+
+        .race-card-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 0.5rem;
+            margin-bottom: 0.6rem;
+        }
         .race-card-name {
             font-family: 'Montserrat', sans-serif;
             font-size: 1.1rem;
             font-weight: 700;
             color: var(--primary);
+            line-height: 1.2;
         }
-        .race-card-track { font-size: 0.9rem; opacity: 0.7; }
-        .race-card-actions { display: flex; gap: 0.5rem; }
-        .race-badge {
+        .race-card-track { font-size: 0.9rem; opacity: 0.6; margin-bottom: 1rem; }
+
+        .badge {
             display: inline-block;
-            padding: 0.2rem 0.7rem;
+            padding: 0.18rem 0.6rem;
             border-radius: 12px;
-            font-size: 0.75rem;
+            font-size: 0.72rem;
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.5px;
+            white-space: nowrap;
+            flex-shrink: 0;
         }
-        .race-badge.live { background: var(--success); color: white; }
-        .race-badge.ended { background: var(--border); color: var(--text); }
-        .race-badge.pending { background: var(--warning); color: var(--dark); }
+        .badge-live    { background: var(--success); color: white; }
+        .badge-pending { background: var(--warning); color: #333; }
+        .badge-ended   { background: var(--border); color: var(--text); }
 
-        /* Roster Builder */
+        .race-card-actions {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        /* ═══════════════════════════════════════
+           MANAGEMENT PANEL
+        ═══════════════════════════════════════ */
+        #mgmtPanel {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+            display: none;
+            overflow: hidden;
+        }
+        .mgmt-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1.5rem 2rem;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+        }
+        .mgmt-header h2 {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 1.3rem;
+            font-weight: 700;
+        }
+        .mgmt-close { background: none; border: none; color: white; font-size: 1.6rem; cursor: pointer; opacity: 0.7; transition: opacity .2s; line-height: 1; padding: 0 0.3rem; }
+        .mgmt-close:hover { opacity: 1; }
+
+        .mgmt-body { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+        @media(max-width:768px) { .mgmt-body { grid-template-columns: 1fr; } }
+
+        .mgmt-col {
+            padding: 1.8rem 2rem;
+            border-right: 1px solid var(--border);
+        }
+        .mgmt-col:last-child { border-right: none; }
+        .mgmt-col h3 {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 1.2rem;
+        }
+
+        /* Roster rows */
         .roster-row {
             display: flex;
             align-items: center;
-            gap: 1rem;
-            padding: 0.8rem;
+            gap: 0.8rem;
+            padding: 0.7rem 0.8rem;
             background: var(--surface);
-            border-radius: 8px;
+            border-radius: 6px;
             margin-bottom: 0.5rem;
-            border-left: 4px solid var(--primary);
+            border-left: 3px solid var(--primary);
         }
-        .roster-order {
-            font-family: 'Montserrat', sans-serif;
-            font-size: 1.3rem;
-            color: var(--primary);
-            font-weight: 700;
-            min-width: 30px;
-        }
+        .roster-order { font-family: 'Montserrat', sans-serif; font-weight: 700; color: var(--primary); min-width: 24px; }
         .roster-row select, .roster-row input {
-            padding: 0.6rem;
+            padding: 0.5rem 0.6rem;
             border: 2px solid var(--border);
             border-radius: 4px;
             font-family: 'Rajdhani', sans-serif;
-            font-size: 1rem;
+            font-size: 0.95rem;
             background: white;
         }
-        .roster-row select { flex: 1; }
-        .roster-row input { width: 80px; text-align: center; }
         .roster-row select:focus, .roster-row input:focus { outline: none; border-color: var(--primary); }
-        .roster-remove { color: var(--danger); cursor: pointer; font-size: 1.3rem; background: none; border: none; }
+        .roster-row select { flex: 1; }
+        .roster-row input { width: 72px; text-align: center; }
+        .roster-status { font-size: 0.75rem; font-weight: 600; color: var(--success); min-width: 60px; }
+        .roster-remove { background: none; border: none; color: var(--danger); font-size: 1.2rem; cursor: pointer; padding: 0 0.2rem; }
 
-        /* Event Log */
-        .event-log { max-height: 400px; overflow-y: auto; }
+        /* Event log */
+        .event-log { max-height: 420px; overflow-y: auto; }
         .event-item {
             display: flex;
-            align-items: center;
-            gap: 1rem;
-            padding: 0.8rem;
+            align-items: flex-start;
+            gap: 0.8rem;
+            padding: 0.75rem 0;
             border-bottom: 1px solid var(--border);
         }
         .event-item:last-child { border-bottom: none; }
         .event-icon {
-            width: 36px; height: 36px;
+            width: 32px; height: 32px;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1rem;
+            font-size: 0.8rem;
+            font-weight: 700;
             flex-shrink: 0;
-        }
-        .event-icon.driver { background: #e8f4ff; color: var(--primary); }
-        .event-icon.fuel { background: #fff3e8; color: #ff8c00; }
-        .event-icon.fuel-low { background: #ffe8e8; color: var(--danger); }
-        .event-detail { flex: 1; }
-        .event-text { font-size: 1rem; font-weight: 600; }
-        .event-time { font-size: 0.8rem; opacity: 0.6; }
-
-        /* Notification Settings */
-        .notif-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 1.5rem;
-        }
-        .notif-card {
-            padding: 1.5rem;
-            border: 2px solid var(--border);
-            border-radius: 8px;
-        }
-        .notif-card h4 {
             font-family: 'Montserrat', sans-serif;
+        }
+        .ei-driver  { background: #e8f4ff; color: var(--primary); }
+        .ei-fuel    { background: #fff3e0; color: #e65100; }
+        .ei-fuellow { background: #fde8e8; color: var(--danger); }
+        .event-text { font-size: 0.95rem; font-weight: 600; line-height: 1.3; }
+        .event-time { font-size: 0.78rem; opacity: 0.55; margin-top: 0.15rem; }
+
+        /* ═══════════════════════════════════════
+           MODALS
+        ═══════════════════════════════════════ */
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.75);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal.open { display: flex; }
+        .modal-box {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem 2.2rem;
+            max-width: 440px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0,0,0,.25);
+            position: relative;
+        }
+        .modal-box h2 {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 1.4rem;
+            font-weight: 700;
             color: var(--primary);
-            margin-bottom: 0.8rem;
+            margin-bottom: 0.3rem;
         }
-        .notif-card .status {
-            font-size: 0.9rem;
-            margin-bottom: 0.8rem;
+        .modal-subtitle { font-size: 0.9rem; opacity: 0.6; margin-bottom: 1.5rem; }
+        .modal-close {
+            position: absolute;
+            top: 1rem; right: 1.2rem;
+            font-size: 1.5rem;
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text);
+            opacity: 0.5;
+            line-height: 1;
         }
-        .notif-card .status.connected { color: var(--success); }
-        .notif-card .status.disconnected { color: var(--danger); }
-        .notif-card input {
+        .modal-close:hover { opacity: 1; }
+
+        .field { margin-bottom: 1.2rem; }
+        .field label {
+            display: block;
+            font-size: 0.82rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.7;
+            margin-bottom: 0.4rem;
+        }
+        .field input, .field select {
             width: 100%;
-            padding: 0.6rem;
+            padding: 0.7rem 0.9rem;
             border: 2px solid var(--border);
             border-radius: 4px;
             font-family: 'Rajdhani', sans-serif;
             font-size: 1rem;
-            margin-bottom: 0.5rem;
+            color: var(--text);
+            background: white;
+            transition: border-color 0.2s;
         }
-        .notif-card input:focus { outline: none; border-color: var(--primary); }
+        .field input:focus, .field select:focus { outline: none; border-color: var(--primary); }
 
-        /* Modal */
-        .modal {
-            display: none; position: fixed; inset: 0;
-            background: rgba(0,0,0,0.85); backdrop-filter: blur(5px);
-            z-index: 1000; align-items: center; justify-content: center;
+        /* Driver quick-select chips inside modal */
+        .driver-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.5rem; }
+        .driver-chip {
+            padding: 0.3rem 0.7rem;
+            border: 2px solid var(--border);
+            border-radius: 20px;
+            background: white;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+            font-family: 'Rajdhani', sans-serif;
         }
-        .modal.active { display: flex; }
-        .modal-content {
-            background: white; padding: 2.5rem; border-radius: 12px;
-            max-width: 500px; width: 90%; position: relative;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-        }
-        .modal-content h2 {
+        .driver-chip:hover { border-color: var(--primary); color: var(--primary); }
+
+        .modal-footer { display: flex; gap: 0.8rem; justify-content: flex-end; margin-top: 1.5rem; }
+        .btn-full { width: 100%; justify-content: center; padding: 0.85rem; font-size: 0.95rem; }
+
+        /* ── Empty / spinner ── */
+        .empty { text-align: center; padding: 2.5rem 1rem; opacity: 0.45; }
+        .empty .icon { font-size: 2.2rem; margin-bottom: 0.6rem; }
+        .empty p { font-size: 1rem; }
+
+        .spinner { display: inline-block; width: 14px; height: 14px; border: 2.5px solid rgba(255,255,255,.3); border-top-color: white; border-radius: 50%; animation: spin .7s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* toast */
+        #toast {
+            position: fixed; bottom: 2rem; right: 2rem; z-index: 9999;
+            padding: 0.75rem 1.4rem;
+            border-radius: 8px;
             font-family: 'Montserrat', sans-serif;
-            font-size: 1.6rem;
-            margin-bottom: 1.5rem;
-            color: var(--primary);
-            text-transform: uppercase;
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: white;
+            box-shadow: 0 4px 16px rgba(0,0,0,.2);
+            animation: slideIn .3s ease;
+            display: none;
         }
-        .close-modal {
-            position: absolute; top: 1rem; right: 1rem;
-            font-size: 2rem; color: var(--text); cursor: pointer;
-            border: none; background: none;
-        }
-        .close-modal:hover { color: var(--primary); }
-        .form-group { margin-bottom: 1.2rem; }
-        .form-group label {
-            display: block; margin-bottom: 0.4rem; font-weight: 600;
-            text-transform: uppercase; font-size: 0.85rem; letter-spacing: 0.5px;
-        }
-        .form-group input, .form-group select {
-            width: 100%; padding: 0.8rem; background: var(--surface);
-            border: 2px solid var(--border); color: var(--text);
-            font-family: 'Rajdhani', sans-serif; font-size: 1rem; border-radius: 4px;
-        }
-        .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--primary); background: white; }
-        .submit-btn {
-            width: 100%; padding: 1rem; background: var(--primary); border: none;
-            color: white; font-family: 'Montserrat', sans-serif; font-weight: 700;
-            font-size: 1rem; cursor: pointer; text-transform: uppercase;
-            letter-spacing: 1px; border-radius: 4px; margin-top: 0.5rem; transition: all 0.3s ease;
-        }
-        .submit-btn:hover { background: var(--primary-dark); }
+        @keyframes slideIn { from{transform:translateX(60px);opacity:0} to{transform:none;opacity:1} }
 
-        .empty-state {
-            text-align: center; padding: 3rem; color: var(--text); opacity: 0.6;
-        }
-        .empty-state h4 {
-            font-family: 'Montserrat', sans-serif; font-size: 1.3rem;
-            color: var(--primary); margin: 0.5rem 0;
-        }
-
-        .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
-
-        @media (max-width: 968px) {
-            .page-header { flex-direction: column; align-items: flex-start; gap: 1rem; }
-            .page-header h1 { font-size: 2rem; }
-            .two-col { grid-template-columns: 1fr; }
-            .race-card { flex-direction: column; align-items: flex-start; gap: 1rem; }
+        @media(max-width: 768px) {
+            .live-stats { grid-template-columns: 1fr 1fr; }
+            .races-grid { grid-template-columns: 1fr; }
+            .page-header h1 { font-size: 1.9rem; }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <div class="logo-container" onclick="window.location.href='/dashboard'">
-                <img src="/img/sm_corse_only_blue.png" alt="SM CORSE" class="logo-img">
-            </div>
-            <a href="/dashboard" class="back-btn">&#8592; Back to Dashboard</a>
-        </header>
+<div class="container">
+    <header>
+        <div class="logo-container" onclick="window.location.href='/dashboard'">
+            <img src="/img/sm_corse_only_blue.png" alt="SM CORSE" class="logo-img">
+        </div>
+        <a href="/dashboard" class="back-btn">← Dashboard</a>
+    </header>
 
-        <main>
-            <div class="page-header">
-                <div>
-                    <h1>Live Race Tracker</h1>
-                    <p>Monitor endurance races, driver stints, and fuel levels in real time</p>
-                </div>
-                <button class="btn btn-primary" onclick="openCreateRace()">+ New Race</button>
-            </div>
-
-            <!-- Live Status Panel -->
-            <div class="live-panel" id="livePanel" style="display:none;">
-                <h2><span class="live-dot active" id="liveDot"></span> <span id="liveRaceName">Race Status</span></h2>
-                <div class="live-grid">
-                    <div class="live-stat">
-                        <div class="live-stat-value" id="liveDriver">--</div>
-                        <div class="live-stat-label">Current Driver</div>
-                    </div>
-                    <div class="live-stat">
-                        <div class="live-stat-value" id="liveFuel">--</div>
-                        <div class="live-stat-label">Fuel Level</div>
-                    </div>
-                    <div class="live-stat">
-                        <div class="live-stat-value" id="liveFuelMins">--</div>
-                        <div class="live-stat-label">Est. Fuel (mins)</div>
-                    </div>
-                    <div class="live-stat">
-                        <div class="live-stat-value" id="liveElapsed">--</div>
-                        <div class="live-stat-label">Race Elapsed</div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="two-col">
-                <!-- Left Column -->
-                <div>
-                    <!-- Race List -->
-                    <div class="section">
-                        <h3>Races</h3>
-                        <div id="raceList">
-                            <div class="empty-state"><h4>No races yet</h4><p>Create a race to get started</p></div>
-                        </div>
-                    </div>
-
-                    <!-- Stint Roster -->
-                    <div class="section" id="rosterSection" style="display:none;">
-                        <h3>Stint Roster — <span id="rosterRaceName"></span></h3>
-                        <div id="rosterContainer"></div>
-                        <div style="display:flex; gap:0.5rem; margin-top:1rem;">
-                            <button class="btn btn-outline btn-sm" onclick="addRosterRow()">+ Add Stint</button>
-                            <button class="btn btn-primary btn-sm" onclick="saveRoster()">Save Roster</button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Right Column -->
-                <div>
-                    <!-- Event Log -->
-                    <div class="section" id="eventSection" style="display:none;">
-                        <h3>Event Log — <span id="eventRaceName"></span></h3>
-                        <div class="event-log" id="eventLog">
-                            <div class="empty-state"><h4>No events yet</h4><p>Events appear when the desktop client sends data</p></div>
-                        </div>
-                    </div>
-
-                    <!-- Notification Settings -->
-                    <div class="section">
-                        <h3>Notification Settings</h3>
-                        <div class="notif-grid">
-                            <div class="notif-card">
-                                <h4>iRacing Name</h4>
-                                <p class="status" id="iracingStatus">Not set</p>
-                                <input type="text" id="iracingNameInput" placeholder="Your iRacing display name">
-                                <button class="btn btn-primary btn-sm" onclick="saveProfile()">Save</button>
-                            </div>
-                            <div class="notif-card">
-                                <h4>Telegram</h4>
-                                <p class="status" id="telegramStatus">Not connected</p>
-                                <input type="text" id="telegramInput" placeholder="Chat ID from @BotFather">
-                                <button class="btn btn-primary btn-sm" onclick="saveTelegram()">Link</button>
-                            </div>
-                            <div class="notif-card">
-                                <h4>Discord Webhook</h4>
-                                <p class="status" id="discordStatus">Not set</p>
-                                <input type="text" id="discordWebhookInput" placeholder="https://discord.com/api/webhooks/...">
-                                <button class="btn btn-primary btn-sm" onclick="saveProfile()">Save</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </main>
+    <div class="page-header">
+        <div>
+            <h1>Race Control</h1>
+            <p>All races — anyone can view and update any race</p>
+        </div>
+        <button class="btn btn-primary" onclick="openModal('createModal')">+ New Race</button>
     </div>
 
-    <!-- Create Race Modal -->
-    <div id="createRaceModal" class="modal">
-        <div class="modal-content">
-            <button class="close-modal" onclick="closeCreateRace()">&times;</button>
-            <h2>Create Race</h2>
-            <form id="createRaceForm" onsubmit="return createRace(event)">
-                <div class="form-group">
-                    <label for="raceName">Race Name *</label>
-                    <input type="text" id="raceName" required placeholder="e.g. 24H Le Mans">
+    <!-- ════════════════ LIVE RACES ════════════════ -->
+    <div id="liveSection" style="display:none;">
+        <div class="section-heading"><span class="live-dot" style="width:10px;height:10px;background:#4ade80;border-radius:50%;display:inline-block;"></span> Live Races</div>
+        <div id="liveCards"></div>
+    </div>
+
+    <!-- ════════════════ ALL RACES ════════════════ -->
+    <div class="section-heading">All Races</div>
+    <div class="races-grid" id="allRacesGrid">
+        <div class="empty"><div class="icon">🏁</div><p>No races yet — create one to get started</p></div>
+    </div>
+
+    <!-- ════════════════ MANAGEMENT PANEL ════════════════ -->
+    <div id="mgmtPanel">
+        <div class="mgmt-header">
+            <div>
+                <h2 id="mgmtTitle">Race Management</h2>
+                <div id="mgmtSubtitle" style="font-size:0.85rem;opacity:0.7;margin-top:0.2rem;"></div>
+            </div>
+            <button class="mgmt-close" onclick="closeMgmt()" title="Close">×</button>
+        </div>
+        <div class="mgmt-body">
+            <div class="mgmt-col">
+                <h3>Stint Roster</h3>
+                <div id="rosterContainer"></div>
+                <div style="display:flex;gap:0.5rem;margin-top:1rem;flex-wrap:wrap;">
+                    <button class="btn btn-outline btn-sm" onclick="addRosterRow()">+ Add Stint</button>
+                    <button class="btn btn-primary btn-sm" onclick="saveRoster()">Save Roster</button>
                 </div>
-                <div class="form-group">
-                    <label for="raceTrack">Track</label>
-                    <input type="text" id="raceTrack" placeholder="e.g. Circuit de la Sarthe">
+            </div>
+            <div class="mgmt-col">
+                <h3>Event Log</h3>
+                <div class="event-log" id="eventLog">
+                    <div class="empty" style="padding:1.5rem;"><p>No events yet</p></div>
                 </div>
-                <button type="submit" class="submit-btn">Create Race</button>
-            </form>
+            </div>
         </div>
     </div>
+</div>
 
-    <script>
-        let races = [];
-        let selectedRaceId = null;
-        let drivers = [];
-        let rosterStints = [];
-        let refreshInterval = null;
+<!-- ════════════════ MODALS ════════════════ -->
 
-        // ── Init ──────────────────────────────────────────────
-        loadRaces();
-        loadDrivers();
-        loadProfile();
-        startAutoRefresh();
+<!-- Create Race -->
+<div class="modal" id="createModal">
+    <div class="modal-box">
+        <button class="modal-close" onclick="closeModal('createModal')">×</button>
+        <h2>Create Race</h2>
+        <p class="modal-subtitle">Add a new race to track</p>
+        <div class="field">
+            <label>Race Name *</label>
+            <input type="text" id="newRaceName" placeholder="e.g. Spa 24 Hours">
+        </div>
+        <div class="field">
+            <label>Track</label>
+            <input type="text" id="newRaceTrack" placeholder="e.g. Circuit de Spa-Francorchamps">
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('createModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="createRace()">Create Race</button>
+        </div>
+    </div>
+</div>
 
-        // ── API Helpers ───────────────────────────────────────
-        async function api(path, opts = {}) {
-            const res = await fetch(path, {
-                headers: { 'Content-Type': 'application/json', ...opts.headers },
-                ...opts,
-            });
-            if (res.status === 401) { window.location.href = '/'; return null; }
-            return res;
+<!-- Log Driver Change -->
+<div class="modal" id="driverModal">
+    <div class="modal-box">
+        <button class="modal-close" onclick="closeModal('driverModal')">×</button>
+        <h2>Log Driver Change</h2>
+        <p class="modal-subtitle" id="driverModalSubtitle">Who just got in the car?</p>
+        <div class="field">
+            <label>Driver Name</label>
+            <input type="text" id="driverNameInput" placeholder="Name of driver now in car">
+        </div>
+        <div id="driverChips" class="driver-chips"></div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('driverModal')">Cancel</button>
+            <button class="btn btn-success btn-full" id="driverSubmitBtn" onclick="submitDriverChange()">Log Driver Change</button>
+        </div>
+    </div>
+</div>
+
+<!-- Update Fuel -->
+<div class="modal" id="fuelModal">
+    <div class="modal-box">
+        <button class="modal-close" onclick="closeModal('fuelModal')">×</button>
+        <h2>Update Fuel</h2>
+        <p class="modal-subtitle" id="fuelModalSubtitle">Enter current fuel readings</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+            <div class="field">
+                <label>Fuel Level (L)</label>
+                <input type="number" id="fuelLevelInput" placeholder="e.g. 15.2" step="0.1" min="0">
+            </div>
+            <div class="field">
+                <label>Est. Remaining (mins)</label>
+                <input type="number" id="fuelMinsInput" placeholder="e.g. 34" min="0">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('fuelModal')">Cancel</button>
+            <button class="btn btn-primary btn-full" id="fuelSubmitBtn" onclick="submitFuelUpdate()">Update Fuel</button>
+        </div>
+    </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════
+let races       = [];
+let allDrivers  = [];
+let rosterStints = [];
+let selectedRaceId = null;
+let refreshTimer   = null;
+let activeModalRaceId = null; // which race the open modal targets
+
+// ═══════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+    loadAll();
+    loadDrivers();
+    startRefresh();
+});
+
+async function loadAll() {
+    const res = await api('/api/races');
+    if (!res) return;
+    races = await res.json();
+    render();
+    // Auto-open management for the active race if one is selected in URL
+    const params = new URLSearchParams(location.search);
+    if (params.get('race')) selectRace(parseInt(params.get('race')));
+}
+
+async function loadDrivers() {
+    const res = await api('/api/team/drivers');
+    if (!res) return;
+    allDrivers = await res.json();
+}
+
+function render() {
+    renderLive();
+    renderAllRaces();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// LIVE SECTION
+// ═══════════════════════════════════════════════════════════════
+async function renderLive() {
+    const active = races.filter(r => r.is_active);
+    const section = document.getElementById('liveSection');
+
+    if (active.length === 0) {
+        section.style.display = 'none';
+        return;
+    }
+    section.style.display = '';
+    const container = document.getElementById('liveCards');
+    container.innerHTML = '';
+
+    for (const race of active) {
+        const card = await buildLiveCard(race);
+        container.appendChild(card);
+    }
+}
+
+async function buildLiveCard(race) {
+    // Fetch live state
+    let state = null, lastFuel = null;
+    try {
+        const r = await api(`/api/races/${race.id}/state`);
+        if (r && r.ok) {
+            const d = await r.json();
+            state    = d.state;
+            lastFuel = d.last_fuel;
         }
+    } catch(e) { /* ignore */ }
 
-        // ── Races ─────────────────────────────────────────────
-        async function loadRaces() {
-            const res = await api('/api/races');
-            if (!res) return;
-            races = await res.json();
-            renderRaces();
-            // Auto-select active race
-            const active = races.find(r => r.is_active);
-            if (active) selectRace(active.id);
+    const elapsed = race.started_at ? elapsedStr(race.started_at) : '--';
+    const driver  = state?.current_driver_name || '--';
+    const fuel    = lastFuel?.fuel_level != null ? parseFloat(lastFuel.fuel_level).toFixed(1) + 'L' : '--';
+    const fuelPct = lastFuel?.fuel_pct != null ? Math.round(lastFuel.fuel_pct) : null;
+    const fuelMins = lastFuel?.mins_remaining != null ? Math.round(lastFuel.mins_remaining) + ' min' : null;
+    const fuelLow  = lastFuel?.mins_remaining != null && lastFuel.mins_remaining <= 20;
+
+    const div = document.createElement('div');
+    div.className = 'live-card';
+    div.id = `livecard-${race.id}`;
+    div.innerHTML = `
+        <div class="live-card-top">
+            <div>
+                <div class="live-race-name">${esc(race.name)}</div>
+                <div class="live-track">${esc(race.track || 'No track set')}</div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.5rem;">
+                <span class="live-badge"><span class="live-dot"></span> LIVE</span>
+                <span class="live-elapsed">${elapsed}</span>
+            </div>
+        </div>
+
+        <div class="live-stats">
+            <div class="live-stat">
+                <div class="live-stat-label">Current Driver</div>
+                <div class="live-stat-value driver">${esc(driver)}</div>
+            </div>
+            <div class="live-stat">
+                <div class="live-stat-label">Fuel Level</div>
+                <div class="live-stat-value">${fuel}</div>
+                ${fuelPct !== null ? `<div class="fuel-bar-wrap">
+                    <div class="fuel-bar-bg"><div class="fuel-bar-fill${fuelLow ? ' low' : ''}" style="width:${Math.min(fuelPct,100)}%"></div></div>
+                </div>` : ''}
+                ${fuelMins ? `<div class="live-stat-sub">~${fuelMins} remaining${fuelLow ? ' ⚠️' : ''}</div>` : ''}
+            </div>
+            <div class="live-stat">
+                <div class="live-stat-label">Elapsed Time</div>
+                <div class="live-stat-value">${elapsed}</div>
+            </div>
+        </div>
+
+        <div class="live-actions">
+            <button class="btn btn-dark btn-sm" onclick="openDriverModal(${race.id}, '${esc(race.name)}')">👤 Driver Change</button>
+            <button class="btn btn-dark btn-sm" onclick="openFuelModal(${race.id}, '${esc(race.name)}')">⛽ Fuel Update</button>
+            <button class="btn btn-dark btn-sm" onclick="selectRace(${race.id})">📋 Manage</button>
+            <button class="btn btn-danger btn-sm" onclick="endRace(${race.id})" style="margin-left:auto;">⏹ End Race</button>
+        </div>
+    `;
+    return div;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ALL RACES GRID
+// ═══════════════════════════════════════════════════════════════
+function renderAllRaces() {
+    const grid = document.getElementById('allRacesGrid');
+    if (races.length === 0) {
+        grid.innerHTML = '<div class="empty"><div class="icon">🏁</div><p>No races yet — create one to get started</p></div>';
+        return;
+    }
+
+    // Sort: active first, then pending (no started_at), then ended
+    const sorted = [...races].sort((a, b) => {
+        const rank = r => r.is_active ? 0 : r.ended_at ? 2 : 1;
+        return rank(a) - rank(b);
+    });
+
+    grid.innerHTML = sorted.map(r => {
+        const badge = r.is_active
+            ? '<span class="badge badge-live">Live</span>'
+            : r.ended_at
+                ? '<span class="badge badge-ended">Ended</span>'
+                : '<span class="badge badge-pending">Pending</span>';
+        const cls = r.is_active ? 'is-active' : r.ended_at ? 'is-ended' : '';
+        const actions = [];
+        if (!r.is_active && !r.ended_at) actions.push(`<button class="btn btn-success btn-sm" onclick="event.stopPropagation();startRace(${r.id})">▶ Start</button>`);
+        if (r.is_active) {
+            actions.push(`<button class="btn btn-sm btn-outline" onclick="event.stopPropagation();openDriverModal(${r.id},'${esc(r.name)}')">👤</button>`);
+            actions.push(`<button class="btn btn-sm btn-outline" onclick="event.stopPropagation();openFuelModal(${r.id},'${esc(r.name)}')">⛽</button>`);
+            actions.push(`<button class="btn btn-danger btn-sm" onclick="event.stopPropagation();endRace(${r.id})">End</button>`);
         }
+        actions.push(`<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();selectRace(${r.id})">📋 Manage</button>`);
 
-        function renderRaces() {
-            const el = document.getElementById('raceList');
-            if (races.length === 0) {
-                el.innerHTML = '<div class="empty-state"><h4>No races yet</h4><p>Create a race to get started</p></div>';
-                return;
+        return `
+        <div class="race-card ${cls}" onclick="selectRace(${r.id})">
+            <div class="race-card-top">
+                <div class="race-card-name">${esc(r.name)}</div>
+                ${badge}
+            </div>
+            <div class="race-card-track">${esc(r.track || 'No track set')}</div>
+            <div class="race-card-actions">${actions.join('')}</div>
+        </div>`;
+    }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RACE CRUD
+// ═══════════════════════════════════════════════════════════════
+async function createRace() {
+    const name  = document.getElementById('newRaceName').value.trim();
+    const track = document.getElementById('newRaceTrack').value.trim();
+    if (!name) { toast('Race name is required', 'error'); return; }
+    const res = await api('/api/races', { method: 'POST', body: JSON.stringify({ name, track }) });
+    if (res && res.ok) {
+        closeModal('createModal');
+        document.getElementById('newRaceName').value = '';
+        document.getElementById('newRaceTrack').value = '';
+        await loadAll();
+        toast('Race created!', 'success');
+    } else {
+        toast('Failed to create race', 'error');
+    }
+}
+
+async function startRace(id) {
+    if (!confirm('Start this race? Any currently active race will be stopped.')) return;
+    const res = await api(`/api/races/${id}/start`, { method: 'POST' });
+    if (res && res.ok) { await loadAll(); toast('Race started!', 'success'); }
+    else toast('Failed to start race', 'error');
+}
+
+async function endRace(id) {
+    if (!confirm('End this race?')) return;
+    const res = await api(`/api/races/${id}/end`, { method: 'POST' });
+    if (res && res.ok) { await loadAll(); toast('Race ended', 'info'); }
+    else toast('Failed to end race', 'error');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MANAGEMENT PANEL
+// ═══════════════════════════════════════════════════════════════
+async function selectRace(id) {
+    selectedRaceId = id;
+    const race = races.find(r => r.id === id);
+    if (!race) return;
+
+    document.getElementById('mgmtTitle').textContent = race.name;
+    document.getElementById('mgmtSubtitle').textContent = race.track
+        ? race.track + (race.is_active ? ' · LIVE' : race.ended_at ? ' · Ended' : ' · Pending')
+        : (race.is_active ? 'LIVE' : race.ended_at ? 'Ended' : 'Pending');
+    document.getElementById('mgmtPanel').style.display = '';
+    document.getElementById('mgmtPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    await Promise.all([loadRoster(id), loadEvents(id)]);
+}
+
+function closeMgmt() {
+    document.getElementById('mgmtPanel').style.display = 'none';
+    selectedRaceId = null;
+}
+
+// ── Roster ──────────────────────────────────────────────────────
+async function loadRoster(raceId) {
+    const res = await api(`/api/races/${raceId}/roster`);
+    if (!res) return;
+    rosterStints = await res.json();
+    renderRoster();
+}
+
+function renderRoster() {
+    const el = document.getElementById('rosterContainer');
+    if (rosterStints.length === 0) {
+        el.innerHTML = '<div class="empty" style="padding:1.2rem;"><p>No stints yet — add drivers below.</p></div>';
+        return;
+    }
+    el.innerHTML = rosterStints.map((s, i) => {
+        const statusTxt = s.actual_start_session_time != null && s.actual_end_session_time == null
+            ? 'IN CAR' : s.actual_end_session_time != null ? 'DONE' : '';
+        return `
+        <div class="roster-row">
+            <span class="roster-order">${i + 1}</span>
+            <select onchange="rosterStints[${i}].driver_user_id = parseInt(this.value)">
+                <option value="">-- Driver --</option>
+                ${allDrivers.map(d => `<option value="${d.id}" ${d.id === s.driver_user_id ? 'selected' : ''}>${esc(d.username)}${d.iracing_name ? ' (' + esc(d.iracing_name) + ')' : ''}</option>`).join('')}
+            </select>
+            <input type="number" value="${s.planned_duration_mins || ''}" placeholder="mins"
+                   onchange="rosterStints[${i}].planned_duration_mins = parseInt(this.value) || null">
+            ${statusTxt ? `<span class="roster-status">${statusTxt}</span>` : ''}
+            <button class="roster-remove" onclick="removeRosterRow(${i})">×</button>
+        </div>`;
+    }).join('');
+}
+
+function addRosterRow() {
+    rosterStints.push({ driver_user_id: null, stint_order: rosterStints.length + 1, planned_duration_mins: null });
+    renderRoster();
+}
+function removeRosterRow(i) {
+    rosterStints.splice(i, 1);
+    rosterStints.forEach((s, idx) => s.stint_order = idx + 1);
+    renderRoster();
+}
+
+async function saveRoster() {
+    if (!selectedRaceId) return;
+    const valid = rosterStints.filter(s => s.driver_user_id);
+    if (valid.length === 0) { toast('Add at least one driver', 'error'); return; }
+    const roster = valid.map((s, i) => ({
+        driver_user_id: s.driver_user_id,
+        stint_order: i + 1,
+        planned_duration_mins: s.planned_duration_mins
+    }));
+    const res = await api(`/api/races/${selectedRaceId}/roster`, { method: 'POST', body: JSON.stringify({ roster }) });
+    if (res && res.ok) { toast('Roster saved!', 'success'); loadRoster(selectedRaceId); }
+    else toast('Failed to save roster', 'error');
+}
+
+// ── Event log ────────────────────────────────────────────────
+async function loadEvents(raceId) {
+    const res = await api(`/api/races/${raceId}/events?limit=100`);
+    if (!res) return;
+    const events = await res.json();
+    renderEvents(events);
+}
+
+function renderEvents(events) {
+    const el = document.getElementById('eventLog');
+    if (events.length === 0) {
+        el.innerHTML = '<div class="empty" style="padding:1.2rem;"><p>No events yet</p></div>';
+        return;
+    }
+    el.innerHTML = events.map(ev => {
+        const isDC   = ev.event_type === 'driver_change';
+        const isLow  = !isDC && ev.mins_remaining != null && ev.mins_remaining <= 20;
+        const cls    = isDC ? 'ei-driver' : isLow ? 'ei-fuellow' : 'ei-fuel';
+        const icon   = isDC ? '👤' : isLow ? '⚠️' : '⛽';
+        let text;
+        if (isDC) {
+            text = `<b>${esc(ev.driver_name)}</b> is now in the car`;
+        } else {
+            text = `Fuel: ${parseFloat(ev.fuel_level).toFixed(1)}L`;
+            if (ev.mins_remaining != null) text += ` (~${Math.round(ev.mins_remaining)} min remaining)`;
+        }
+        const time = new Date(ev.created_at).toLocaleTimeString();
+        const via  = ev.reporter_username ? ` · via ${esc(ev.reporter_username)}` : '';
+        return `
+        <div class="event-item">
+            <div class="event-icon ${cls}">${icon}</div>
+            <div>
+                <div class="event-text">${text}</div>
+                <div class="event-time">${time}${via}</div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MODALS — Driver Change
+// ═══════════════════════════════════════════════════════════════
+function openDriverModal(raceId, raceName) {
+    activeModalRaceId = raceId;
+    document.getElementById('driverModalSubtitle').textContent = `Race: ${raceName}`;
+    document.getElementById('driverNameInput').value = '';
+    // Populate driver chips from team drivers
+    const chips = document.getElementById('driverChips');
+    chips.innerHTML = '';
+    allDrivers.forEach(d => {
+        const name = d.iracing_name || d.username;
+        const chip = document.createElement('button');
+        chip.className = 'driver-chip';
+        chip.textContent = name;
+        chip.type = 'button';
+        chip.onclick = () => {
+            document.getElementById('driverNameInput').value = name;
+            chips.querySelectorAll('.driver-chip').forEach(c => c.style.borderColor = '');
+            chip.style.borderColor = 'var(--primary)';
+            chip.style.color = 'var(--primary)';
+        };
+        chips.appendChild(chip);
+    });
+    openModal('driverModal');
+    setTimeout(() => document.getElementById('driverNameInput').focus(), 100);
+}
+
+async function submitDriverChange() {
+    const name = document.getElementById('driverNameInput').value.trim();
+    if (!name) { toast('Enter a driver name', 'error'); return; }
+    const btn = document.getElementById('driverSubmitBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>';
+    const res = await api(`/api/races/${activeModalRaceId}/event`, {
+        method: 'POST',
+        body: JSON.stringify({ event_type: 'driver_change', driver_name: name })
+    });
+    btn.disabled = false;
+    btn.textContent = 'Log Driver Change';
+    if (res && res.ok) {
+        closeModal('driverModal');
+        toast(`Driver change logged: ${name}`, 'success');
+        await loadAll();
+        if (selectedRaceId === activeModalRaceId) loadEvents(selectedRaceId);
+    } else {
+        toast('Failed to log driver change', 'error');
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MODALS — Fuel Update
+// ═══════════════════════════════════════════════════════════════
+function openFuelModal(raceId, raceName) {
+    activeModalRaceId = raceId;
+    document.getElementById('fuelModalSubtitle').textContent = `Race: ${raceName}`;
+    document.getElementById('fuelLevelInput').value  = '';
+    document.getElementById('fuelMinsInput').value   = '';
+    openModal('fuelModal');
+    setTimeout(() => document.getElementById('fuelLevelInput').focus(), 100);
+}
+
+async function submitFuelUpdate() {
+    const level = parseFloat(document.getElementById('fuelLevelInput').value);
+    const mins  = parseFloat(document.getElementById('fuelMinsInput').value) || null;
+    if (isNaN(level)) { toast('Enter a fuel level', 'error'); return; }
+    const btn = document.getElementById('fuelSubmitBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>';
+    const res = await api(`/api/races/${activeModalRaceId}/event`, {
+        method: 'POST',
+        body: JSON.stringify({ event_type: 'fuel_update', fuel_level: level, mins_remaining: mins })
+    });
+    btn.disabled = false;
+    btn.textContent = 'Update Fuel';
+    if (res && res.ok) {
+        closeModal('fuelModal');
+        toast('Fuel updated!', 'success');
+        await loadAll();
+        if (selectedRaceId === activeModalRaceId) loadEvents(selectedRaceId);
+    } else {
+        toast('Failed to update fuel', 'error');
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// AUTO-REFRESH
+// ═══════════════════════════════════════════════════════════════
+function startRefresh() {
+    refreshTimer = setInterval(async () => {
+        const active = races.filter(r => r.is_active);
+        if (active.length > 0) {
+            await loadAll();
+            if (selectedRaceId) {
+                loadEvents(selectedRaceId);
             }
-            el.innerHTML = races.map(r => {
-                const badge = r.is_active ? '<span class="race-badge live">LIVE</span>'
-                    : r.ended_at ? '<span class="race-badge ended">ENDED</span>'
-                    : '<span class="race-badge pending">PENDING</span>';
-                return `
-                    <div class="race-card ${r.is_active ? 'active' : ''}" onclick="selectRace(${r.id})">
-                        <div class="race-card-info">
-                            <div class="race-card-name">${esc(r.name)} ${badge}</div>
-                            <div class="race-card-track">${esc(r.track || 'No track set')}</div>
-                        </div>
-                        <div class="race-card-actions">
-                            ${!r.is_active && !r.ended_at ? `<button class="btn btn-success btn-sm" onclick="event.stopPropagation(); startRace(${r.id})">Start</button>` : ''}
-                            ${r.is_active ? `<button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); endRace(${r.id})">End Race</button>` : ''}
-                        </div>
-                    </div>`;
-            }).join('');
         }
+    }, 12000);
+}
 
-        function openCreateRace() { document.getElementById('createRaceModal').classList.add('active'); }
-        function closeCreateRace() {
-            document.getElementById('createRaceModal').classList.remove('active');
-            document.getElementById('createRaceForm').reset();
-        }
-        document.getElementById('createRaceModal').addEventListener('click', e => {
-            if (e.target.id === 'createRaceModal') closeCreateRace();
-        });
+// ═══════════════════════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════════════════════
+async function api(path, opts = {}) {
+    const res = await fetch(path, {
+        headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
+        ...opts
+    });
+    if (res.status === 401) { window.location.href = '/'; return null; }
+    return res;
+}
 
-        async function createRace(e) {
-            e.preventDefault();
-            const name = document.getElementById('raceName').value;
-            const track = document.getElementById('raceTrack').value;
-            await api('/api/races', { method: 'POST', body: JSON.stringify({ name, track }) });
-            closeCreateRace();
-            loadRaces();
-            return false;
-        }
+function openModal(id) {
+    document.getElementById(id).classList.add('open');
+    document.getElementById(id).addEventListener('click', e => {
+        if (e.target.id === id) closeModal(id);
+    }, { once: true });
+}
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
-        async function startRace(id) {
-            if (!confirm('Start this race? Any other active race will be stopped.')) return;
-            await api(`/api/races/${id}/start`, { method: 'POST' });
-            loadRaces();
-        }
+// Enter key submits in modals
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') document.querySelectorAll('.modal.open').forEach(m => m.classList.remove('open'));
+    if (e.key === 'Enter' && document.getElementById('driverModal').classList.contains('open')) submitDriverChange();
+    if (e.key === 'Enter' && document.getElementById('createModal').classList.contains('open')) createRace();
+});
 
-        async function endRace(id) {
-            if (!confirm('End this race?')) return;
-            await api(`/api/races/${id}/end`, { method: 'POST' });
-            loadRaces();
-        }
+function elapsedStr(startedAt) {
+    const ms   = Date.now() - new Date(startedAt).getTime();
+    const hrs  = Math.floor(ms / 3600000);
+    const mins = Math.floor((ms % 3600000) / 60000);
+    return `${hrs}h ${mins}m`;
+}
 
-        // ── Select Race ───────────────────────────────────────
-        function selectRace(id) {
-            selectedRaceId = id;
-            const race = races.find(r => r.id === id);
-            if (!race) return;
+function esc(str) {
+    if (str == null) return '';
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+}
 
-            // Show roster & events sections
-            document.getElementById('rosterSection').style.display = '';
-            document.getElementById('rosterRaceName').textContent = race.name;
-            document.getElementById('eventSection').style.display = '';
-            document.getElementById('eventRaceName').textContent = race.name;
-
-            loadRoster(id);
-            loadEvents(id);
-            if (race.is_active) loadLiveStatus();
-        }
-
-        // ── Live Status ───────────────────────────────────────
-        async function loadLiveStatus() {
-            const res = await api('/api/iracing/status');
-            if (!res) return;
-            const data = await res.json();
-            const panel = document.getElementById('livePanel');
-
-            if (!data.active_race) {
-                panel.style.display = 'none';
-                return;
-            }
-
-            panel.style.display = '';
-            document.getElementById('liveRaceName').textContent = data.active_race.name;
-            document.getElementById('liveDriver').textContent = data.current_driver || '--';
-
-            if (data.last_fuel) {
-                document.getElementById('liveFuel').textContent = data.last_fuel.fuel_level != null
-                    ? parseFloat(data.last_fuel.fuel_level).toFixed(1) + 'L' : '--';
-                document.getElementById('liveFuelMins').textContent = data.last_fuel.mins_remaining != null
-                    ? Math.round(data.last_fuel.mins_remaining) + ' min' : '--';
-            }
-
-            if (data.active_race.started_at) {
-                const elapsed = Date.now() - new Date(data.active_race.started_at).getTime();
-                const hrs = Math.floor(elapsed / 3600000);
-                const mins = Math.floor((elapsed % 3600000) / 60000);
-                document.getElementById('liveElapsed').textContent = `${hrs}h ${mins}m`;
-            }
-        }
-
-        // ── Roster ────────────────────────────────────────────
-        async function loadDrivers() {
-            const res = await api('/api/team/drivers');
-            if (!res) return;
-            drivers = await res.json();
-        }
-
-        async function loadRoster(raceId) {
-            const res = await api(`/api/races/${raceId}/roster`);
-            if (!res) return;
-            rosterStints = await res.json();
-            renderRoster();
-        }
-
-        function renderRoster() {
-            const el = document.getElementById('rosterContainer');
-            if (rosterStints.length === 0) {
-                el.innerHTML = '<div class="empty-state" style="padding:1rem;"><p>No stints planned. Add drivers below.</p></div>';
-                return;
-            }
-            el.innerHTML = rosterStints.map((s, i) => {
-                const statusText = s.actual_start_session_time != null && s.actual_end_session_time == null
-                    ? ' (IN CAR)' : s.actual_end_session_time != null ? ' (DONE)' : '';
-                return `
-                    <div class="roster-row">
-                        <span class="roster-order">${i + 1}</span>
-                        <select onchange="rosterStints[${i}].driver_user_id = parseInt(this.value)">
-                            <option value="">-- Select Driver --</option>
-                            ${drivers.map(d => `<option value="${d.id}" ${d.id === s.driver_user_id ? 'selected' : ''}>${esc(d.username)}${d.iracing_name ? ' (' + esc(d.iracing_name) + ')' : ''}</option>`).join('')}
-                        </select>
-                        <input type="number" value="${s.planned_duration_mins || ''}" placeholder="mins"
-                               onchange="rosterStints[${i}].planned_duration_mins = parseInt(this.value) || null">
-                        <span style="font-size:0.8rem; opacity:0.6;">${statusText}</span>
-                        <button class="roster-remove" onclick="removeRosterRow(${i})">&times;</button>
-                    </div>`;
-            }).join('');
-        }
-
-        function addRosterRow() {
-            rosterStints.push({ driver_user_id: null, stint_order: rosterStints.length + 1, planned_duration_mins: null });
-            renderRoster();
-        }
-
-        function removeRosterRow(i) {
-            rosterStints.splice(i, 1);
-            rosterStints.forEach((s, idx) => s.stint_order = idx + 1);
-            renderRoster();
-        }
-
-        async function saveRoster() {
-            const valid = rosterStints.filter(s => s.driver_user_id);
-            if (valid.length === 0) { alert('Add at least one driver to the roster.'); return; }
-            const roster = valid.map((s, i) => ({
-                driver_user_id: s.driver_user_id,
-                stint_order: i + 1,
-                planned_duration_mins: s.planned_duration_mins
-            }));
-            const res = await api(`/api/races/${selectedRaceId}/roster`, {
-                method: 'POST', body: JSON.stringify({ roster })
-            });
-            if (res && res.ok) {
-                loadRoster(selectedRaceId);
-            } else {
-                alert('Failed to save roster');
-            }
-        }
-
-        // ── Events ────────────────────────────────────────────
-        async function loadEvents(raceId) {
-            const res = await api(`/api/races/${raceId || selectedRaceId}/events?limit=100`);
-            if (!res) return;
-            const events = await res.json();
-            renderEvents(events);
-        }
-
-        function renderEvents(events) {
-            const el = document.getElementById('eventLog');
-            if (events.length === 0) {
-                el.innerHTML = '<div class="empty-state"><h4>No events yet</h4><p>Events appear when the desktop client sends data</p></div>';
-                return;
-            }
-            el.innerHTML = events.map(ev => {
-                const isDriver = ev.event_type === 'driver_change';
-                const isFuelLow = ev.event_type === 'fuel_update' && ev.mins_remaining && ev.mins_remaining <= 20;
-                const iconClass = isDriver ? 'driver' : isFuelLow ? 'fuel-low' : 'fuel';
-                const iconText = isDriver ? 'DC' : 'F';
-                let text;
-                if (isDriver) {
-                    text = `<b>${esc(ev.driver_name)}</b> got in the car`;
-                } else {
-                    text = `Fuel: ${parseFloat(ev.fuel_level).toFixed(1)}L`;
-                    if (ev.mins_remaining != null) text += ` (~${Math.round(ev.mins_remaining)} min)`;
-                }
-                const time = new Date(ev.created_at).toLocaleTimeString();
-                return `
-                    <div class="event-item">
-                        <div class="event-icon ${iconClass}">${iconText}</div>
-                        <div class="event-detail">
-                            <div class="event-text">${text}</div>
-                            <div class="event-time">${time}${ev.reporter_username ? ' &middot; via ' + esc(ev.reporter_username) : ''}</div>
-                        </div>
-                    </div>`;
-            }).join('');
-        }
-
-        // ── Notifications / Profile ───────────────────────────
-        async function loadProfile() {
-            const res = await api('/api/team/profile');
-            if (!res) return;
-            const p = await res.json();
-            if (p.iracing_name) {
-                document.getElementById('iracingNameInput').value = p.iracing_name;
-                document.getElementById('iracingStatus').textContent = p.iracing_name;
-                document.getElementById('iracingStatus').className = 'status connected';
-            }
-            if (p.telegram_chat_id) {
-                document.getElementById('telegramInput').value = p.telegram_chat_id;
-                document.getElementById('telegramStatus').textContent = 'Connected (ID: ' + p.telegram_chat_id + ')';
-                document.getElementById('telegramStatus').className = 'status connected';
-            }
-            if (p.discord_webhook) {
-                document.getElementById('discordWebhookInput').value = p.discord_webhook;
-                document.getElementById('discordStatus').textContent = 'Webhook set';
-                document.getElementById('discordStatus').className = 'status connected';
-            }
-        }
-
-        async function saveProfile() {
-            const iracing_name = document.getElementById('iracingNameInput').value || undefined;
-            const discord_webhook = document.getElementById('discordWebhookInput').value || undefined;
-            await api('/api/team/profile', {
-                method: 'PATCH', body: JSON.stringify({ iracing_name, discord_webhook })
-            });
-            loadProfile();
-        }
-
-        async function saveTelegram() {
-            const telegram_chat_id = document.getElementById('telegramInput').value;
-            if (!telegram_chat_id) { alert('Enter your Telegram Chat ID'); return; }
-            await api('/api/team/register-telegram', {
-                method: 'POST', body: JSON.stringify({ telegram_chat_id })
-            });
-            loadProfile();
-        }
-
-        // ── Auto-refresh ──────────────────────────────────────
-        function startAutoRefresh() {
-            refreshInterval = setInterval(() => {
-                const active = races.find(r => r.is_active);
-                if (active) {
-                    loadLiveStatus();
-                    if (selectedRaceId === active.id) loadEvents(active.id);
-                }
-            }, 10000);
-        }
-
-        // ── Helpers ───────────────────────────────────────────
-        function esc(str) {
-            if (!str) return '';
-            const d = document.createElement('div');
-            d.textContent = str;
-            return d.innerHTML;
-        }
-    </script>
+let toastTimer;
+function toast(msg, type = 'info') {
+    const el = document.getElementById('toast');
+    const bg = { success: '#28a745', error: '#dc3545', info: '#0066cc', warning: '#e6a817' }[type] || '#0066cc';
+    el.style.background = bg;
+    el.textContent = msg;
+    el.style.display = 'block';
+    el.style.animation = 'none';
+    void el.offsetWidth;
+    el.style.animation = 'slideIn .3s ease';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.style.display = 'none'; }, 3000);
+}
+</script>
 </body>
 </html>

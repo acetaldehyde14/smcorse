@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - SM CORSE</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #0066cc;
+            --primary-dark: #004d99;
+            --accent: #00aaff;
+            --dark: #0a0f1c;
+            --surface: #f8f9fa;
+            --text: #2c3e50;
+            --light: #ffffff;
+            --border: #e0e6ed;
+            --danger: #dc3545;
+            --danger-dark: #b02a37;
+            --success: #198754;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            background: var(--surface);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Header */
+        header {
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+            margin: -2rem -2rem 2rem -2rem;
+            padding: 1.2rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .logo-img { height: 44px; width: auto; }
+
+        .header-title {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--primary);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .admin-badge {
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            color: white;
+            font-family: 'Montserrat', sans-serif;
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 0.2rem 0.6rem;
+            border-radius: 20px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .user-section {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .user-info { text-align: right; }
+
+        .user-name {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 1rem;
+            color: var(--primary);
+            font-weight: 700;
+        }
+
+        .back-btn, .logout-btn {
+            padding: 0.6rem 1.4rem;
+            border: 2px solid var(--primary);
+            background: transparent;
+            color: var(--primary);
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 600;
+            font-size: 0.85rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-radius: 4px;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+
+        .back-btn:hover, .logout-btn:hover {
+            background: var(--primary);
+            color: white;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.2rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            border-left: 4px solid var(--primary);
+            text-align: center;
+        }
+
+        .stat-number {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 900;
+            color: var(--primary);
+            line-height: 1;
+            margin-bottom: 0.4rem;
+        }
+
+        .stat-label {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text);
+            font-weight: 600;
+            opacity: 0.7;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 0;
+            border-bottom: 2px solid var(--border);
+            margin-bottom: 1.5rem;
+        }
+
+        .tab-btn {
+            padding: 0.8rem 1.8rem;
+            border: none;
+            background: transparent;
+            font-family: 'Montserrat', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text);
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            margin-bottom: -2px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            transition: all 0.2s;
+        }
+
+        .tab-btn:hover { color: var(--primary); }
+
+        .tab-btn.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+
+        .tab-pane { display: none; }
+        .tab-pane.active { display: block; }
+
+        /* Table */
+        .table-wrap {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            overflow: hidden;
+        }
+
+        .table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.2rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .table-title {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .search-input {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 0.95rem;
+            width: 220px;
+            outline: none;
+        }
+
+        .search-input:focus { border-color: var(--primary); }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.95rem;
+        }
+
+        th {
+            background: var(--surface);
+            padding: 0.8rem 1.2rem;
+            text-align: left;
+            font-family: 'Montserrat', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text);
+            opacity: 0.7;
+            border-bottom: 1px solid var(--border);
+        }
+
+        td {
+            padding: 0.9rem 1.2rem;
+            border-bottom: 1px solid var(--border);
+            vertical-align: middle;
+        }
+
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: rgba(0, 102, 204, 0.03); }
+
+        .badge {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .badge-admin { background: #dbeafe; color: #1d4ed8; }
+        .badge-user { background: var(--surface); color: var(--text); opacity: 0.8; }
+        .badge-active { background: #dcfce7; color: #15803d; }
+        .badge-ended { background: #f1f5f9; color: #64748b; }
+        .badge-pending { background: #fef9c3; color: #854d0e; }
+
+        .btn-sm {
+            padding: 0.35rem 0.9rem;
+            border-radius: 4px;
+            font-family: 'Montserrat', sans-serif;
+            font-size: 0.78rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            letter-spacing: 0.3px;
+            transition: all 0.2s;
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-danger:hover { background: var(--danger-dark); }
+
+        .btn-outline {
+            background: transparent;
+            border: 1.5px solid var(--primary);
+            color: var(--primary);
+        }
+
+        .btn-outline:hover { background: var(--primary); color: white; }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-success:hover { background: #146c43; }
+
+        .actions { display: flex; gap: 0.5rem; align-items: center; }
+
+        .empty-row td {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text);
+            opacity: 0.5;
+            font-style: italic;
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: var(--dark);
+            color: white;
+            padding: 0.9rem 1.5rem;
+            border-radius: 6px;
+            font-family: 'Montserrat', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 600;
+            z-index: 9999;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.3s;
+            pointer-events: none;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .toast.error { background: var(--danger); }
+        .toast.success { background: var(--success); }
+
+        /* Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.show { display: flex; }
+
+        .modal {
+            background: white;
+            border-radius: 8px;
+            padding: 2rem;
+            max-width: 420px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        .modal h3 {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 1.1rem;
+            margin-bottom: 0.8rem;
+            color: var(--text);
+        }
+
+        .modal p {
+            color: var(--text);
+            opacity: 0.75;
+            margin-bottom: 1.5rem;
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 0.8rem;
+            justify-content: flex-end;
+        }
+
+        .btn-cancel {
+            padding: 0.6rem 1.4rem;
+            border-radius: 4px;
+            border: 1.5px solid var(--border);
+            background: transparent;
+            cursor: pointer;
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+
+        .btn-confirm-delete {
+            padding: 0.6rem 1.4rem;
+            border-radius: 4px;
+            border: none;
+            background: var(--danger);
+            color: white;
+            cursor: pointer;
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+
+        .btn-confirm-delete:hover { background: var(--danger-dark); }
+
+        @media (max-width: 768px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .tabs { overflow-x: auto; }
+            .tab-btn { white-space: nowrap; }
+            table { font-size: 0.85rem; }
+            th, td { padding: 0.6rem 0.8rem; }
+            .search-input { width: 160px; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <div class="logo-container">
+            <img src="/logos/smcorse-logo.png" alt="SM CORSE" class="logo-img" onerror="this.style.display='none'">
+            <div>
+                <div class="header-title">SM CORSE</div>
+                <span class="admin-badge">Admin Panel</span>
+            </div>
+        </div>
+        <div class="user-section">
+            <div class="user-info">
+                <div class="user-name" id="adminName">Loading...</div>
+            </div>
+            <a href="/dashboard" class="back-btn">Dashboard</a>
+            <button class="logout-btn" onclick="logout()">Logout</button>
+        </div>
+    </header>
+
+    <!-- Stats -->
+    <div class="stats-grid" id="statsGrid">
+        <div class="stat-card"><div class="stat-number" id="statUsers">—</div><div class="stat-label">Users</div></div>
+        <div class="stat-card"><div class="stat-number" id="statSessions">—</div><div class="stat-label">Sessions</div></div>
+        <div class="stat-card"><div class="stat-number" id="statLaps">—</div><div class="stat-label">Laps</div></div>
+        <div class="stat-card"><div class="stat-number" id="statRaces">—</div><div class="stat-label">Races</div></div>
+        <div class="stat-card"><div class="stat-number" id="statTeam">—</div><div class="stat-label">Team Members</div></div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('users', this)">Users</button>
+        <button class="tab-btn" onclick="switchTab('races', this)">Races</button>
+        <button class="tab-btn" onclick="switchTab('team', this)">Team Members</button>
+    </div>
+
+    <!-- Users Tab -->
+    <div class="tab-pane active" id="tab-users">
+        <div class="table-wrap">
+            <div class="table-header">
+                <div class="table-title">All Users</div>
+                <input class="search-input" type="text" placeholder="Search users..." oninput="filterTable('users-table', this.value)">
+            </div>
+            <table id="users-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Username</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Joined</th>
+                        <th>Last Login</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="users-body">
+                    <tr class="empty-row"><td colspan="7">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Races Tab -->
+    <div class="tab-pane" id="tab-races">
+        <div class="table-wrap">
+            <div class="table-header">
+                <div class="table-title">All Races</div>
+                <input class="search-input" type="text" placeholder="Search races..." oninput="filterTable('races-table', this.value)">
+            </div>
+            <table id="races-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Status</th>
+                        <th>Drivers</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="races-body">
+                    <tr class="empty-row"><td colspan="6">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Team Tab -->
+    <div class="tab-pane" id="tab-team">
+        <div class="table-wrap">
+            <div class="table-header">
+                <div class="table-title">Team Members</div>
+                <input class="search-input" type="text" placeholder="Search members..." oninput="filterTable('team-table', this.value)">
+            </div>
+            <table id="team-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Role</th>
+                        <th>iRacing Name</th>
+                        <th>Discord</th>
+                        <th>Telegram</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="team-body">
+                    <tr class="empty-row"><td colspan="7">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Confirm Modal -->
+<div class="modal-overlay" id="confirmModal">
+    <div class="modal">
+        <h3 id="modalTitle">Confirm Action</h3>
+        <p id="modalMessage">Are you sure?</p>
+        <div class="modal-actions">
+            <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+            <button class="btn-confirm-delete" id="modalConfirmBtn">Delete</button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+    let currentUserId = null;
+    let modalCallback = null;
+
+    // ── Init ──────────────────────────────────────
+    async function init() {
+        try {
+            const r = await fetch('/api/user');
+            if (!r.ok) { window.location.href = '/'; return; }
+            const user = await r.json();
+            document.getElementById('adminName').textContent = user.username;
+            currentUserId = user.id;
+        } catch { window.location.href = '/'; return; }
+
+        loadStats();
+        loadUsers();
+    }
+
+    // ── Stats ─────────────────────────────────────
+    async function loadStats() {
+        try {
+            const r = await fetch('/api/admin/stats');
+            if (!r.ok) return;
+            const s = await r.json();
+            document.getElementById('statUsers').textContent = s.users;
+            document.getElementById('statSessions').textContent = s.sessions;
+            document.getElementById('statLaps').textContent = s.laps;
+            document.getElementById('statRaces').textContent = s.races;
+            document.getElementById('statTeam').textContent = s.teamMembers;
+        } catch {}
+    }
+
+    // ── Tabs ──────────────────────────────────────
+    function switchTab(name, btn) {
+        document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('tab-' + name).classList.add('active');
+        btn.classList.add('active');
+        if (name === 'races') loadRaces();
+        if (name === 'team') loadTeam();
+    }
+
+    // ── Search / Filter ───────────────────────────
+    function filterTable(tableId, query) {
+        const rows = document.querySelectorAll(`#${tableId} tbody tr:not(.empty-row)`);
+        const q = query.toLowerCase();
+        rows.forEach(row => {
+            row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+        });
+    }
+
+    // ── Users ─────────────────────────────────────
+    async function loadUsers() {
+        const tbody = document.getElementById('users-body');
+        try {
+            const r = await fetch('/api/admin/users');
+            const users = await r.json();
+            if (!users.length) {
+                tbody.innerHTML = '<tr class="empty-row"><td colspan="7">No users found.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = users.map(u => `
+                <tr data-id="${u.id}">
+                    <td>#${u.id}</td>
+                    <td>${esc(u.username)}</td>
+                    <td>${esc(u.email)}</td>
+                    <td><span class="badge ${u.is_admin ? 'badge-admin' : 'badge-user'}">${u.is_admin ? 'Admin' : 'User'}</span></td>
+                    <td>${fmtDate(u.created_at)}</td>
+                    <td>${u.last_login ? fmtDate(u.last_login) : '—'}</td>
+                    <td>
+                        <div class="actions">
+                            <button class="btn-sm btn-outline" onclick="toggleAdmin(${u.id}, ${u.is_admin}, '${esc(u.username)}')">${u.is_admin ? 'Remove Admin' : 'Make Admin'}</button>
+                            <button class="btn-sm btn-danger" onclick="confirmDelete('user', ${u.id}, '${esc(u.username)}')">Delete</button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        } catch (e) {
+            tbody.innerHTML = `<tr class="empty-row"><td colspan="7">Failed to load users.</td></tr>`;
+        }
+    }
+
+    async function toggleAdmin(id, isAdmin, name) {
+        try {
+            const r = await fetch(`/api/admin/users/${id}/admin`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ is_admin: !isAdmin })
+            });
+            if (!r.ok) { const e = await r.json(); return showToast(e.error, 'error'); }
+            showToast(`${name} is now ${!isAdmin ? 'an admin' : 'a regular user'}`, 'success');
+            loadUsers();
+        } catch { showToast('Request failed', 'error'); }
+    }
+
+    // ── Races ─────────────────────────────────────
+    async function loadRaces() {
+        const tbody = document.getElementById('races-body');
+        try {
+            const r = await fetch('/api/admin/races');
+            const races = await r.json();
+            if (!races.length) {
+                tbody.innerHTML = '<tr class="empty-row"><td colspan="6">No races found.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = races.map(race => `
+                <tr data-id="${race.id}">
+                    <td>#${race.id}</td>
+                    <td>${esc(race.name)}</td>
+                    <td><span class="badge ${statusBadge(race.status)}">${esc(race.status || 'pending')}</span></td>
+                    <td>${race.driver_count}</td>
+                    <td>${fmtDate(race.created_at)}</td>
+                    <td>
+                        <div class="actions">
+                            <button class="btn-sm btn-danger" onclick="confirmDelete('race', ${race.id}, '${esc(race.name)}')">Delete</button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        } catch {
+            tbody.innerHTML = '<tr class="empty-row"><td colspan="6">Failed to load races.</td></tr>';
+        }
+    }
+
+    function statusBadge(status) {
+        if (status === 'active') return 'badge-active';
+        if (status === 'ended') return 'badge-ended';
+        return 'badge-pending';
+    }
+
+    // ── Team ──────────────────────────────────────
+    async function loadTeam() {
+        const tbody = document.getElementById('team-body');
+        try {
+            const r = await fetch('/api/admin/team');
+            const members = await r.json();
+            if (!members.length) {
+                tbody.innerHTML = '<tr class="empty-row"><td colspan="7">No team members found.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = members.map(m => `
+                <tr data-id="${m.id}">
+                    <td>#${m.id}</td>
+                    <td>${esc(m.name)}</td>
+                    <td>${m.role ? esc(m.role) : '—'}</td>
+                    <td>${m.iracing_name ? esc(m.iracing_name) : '—'}</td>
+                    <td>${m.discord_id ? '<span class="badge badge-active">Linked</span>' : '—'}</td>
+                    <td>${m.telegram_chat_id ? '<span class="badge badge-active">Linked</span>' : '—'}</td>
+                    <td>
+                        <div class="actions">
+                            <button class="btn-sm btn-danger" onclick="confirmDelete('team', ${m.id}, '${esc(m.name)}')">Delete</button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        } catch {
+            tbody.innerHTML = '<tr class="empty-row"><td colspan="7">Failed to load team members.</td></tr>';
+        }
+    }
+
+    // ── Delete (generic) ──────────────────────────
+    function confirmDelete(type, id, name) {
+        document.getElementById('modalTitle').textContent = `Delete ${type === 'user' ? 'User' : type === 'race' ? 'Race' : 'Team Member'}`;
+        document.getElementById('modalMessage').textContent = `Are you sure you want to delete "${name}"? This action cannot be undone.`;
+        const btn = document.getElementById('modalConfirmBtn');
+        btn.onclick = () => { closeModal(); doDelete(type, id); };
+        document.getElementById('confirmModal').classList.add('show');
+    }
+
+    function closeModal() {
+        document.getElementById('confirmModal').classList.remove('show');
+    }
+
+    async function doDelete(type, id) {
+        const endpoints = { user: `/api/admin/users/${id}`, race: `/api/admin/races/${id}`, team: `/api/admin/team/${id}` };
+        try {
+            const r = await fetch(endpoints[type], { method: 'DELETE' });
+            if (!r.ok) { const e = await r.json(); return showToast(e.error || 'Delete failed', 'error'); }
+            showToast('Deleted successfully', 'success');
+            if (type === 'user') { loadUsers(); loadStats(); }
+            if (type === 'race') { loadRaces(); loadStats(); }
+            if (type === 'team') { loadTeam(); loadStats(); }
+        } catch { showToast('Request failed', 'error'); }
+    }
+
+    // ── Logout ────────────────────────────────────
+    async function logout() {
+        await fetch('/api/logout', { method: 'POST' });
+        window.location.href = '/';
+    }
+
+    // ── Helpers ───────────────────────────────────
+    function esc(str) {
+        return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+
+    function fmtDate(iso) {
+        if (!iso) return '—';
+        return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
+
+    let toastTimer;
+    function showToast(msg, type = '') {
+        const t = document.getElementById('toast');
+        t.textContent = msg;
+        t.className = 'toast show' + (type ? ' ' + type : '');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => t.className = 'toast', 3000);
+    }
+
+    // Close modal on overlay click
+    document.getElementById('confirmModal').addEventListener('click', function(e) {
+        if (e.target === this) closeModal();
+    });
+
+    init();
+</script>
+</body>
+</html>

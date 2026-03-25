@@ -135,6 +135,94 @@ router.post('/:id/roster', authenticateToken, async (req, res) => {
   }
 });
 
+// GET /api/races/:id/state — live state snapshot for one race
+router.get('/:id/state', authenticateToken, async (req, res) => {
+  try {
+    const [raceR, stateR, fuelR] = await Promise.all([
+      query('SELECT * FROM races WHERE id = $1', [req.params.id]),
+      query('SELECT * FROM race_state WHERE race_id = $1', [req.params.id]),
+      query(
+        `SELECT fuel_level, fuel_pct, mins_remaining, created_at
+         FROM iracing_events
+         WHERE race_id = $1 AND event_type = 'fuel_update'
+         ORDER BY created_at DESC LIMIT 1`,
+        [req.params.id]
+      )
+    ]);
+    if (raceR.rowCount === 0) return res.status(404).json({ error: 'Race not found' });
+    res.json({
+      race:      raceR.rows[0],
+      state:     stateR.rows[0] || null,
+      last_fuel: fuelR.rows[0]  || null
+    });
+  } catch (err) {
+    console.error('[Races] state error:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/races/:id/event — manually log a driver change or fuel update
+router.post('/:id/event', authenticateToken, async (req, res) => {
+  const { event_type, driver_name, fuel_level, fuel_pct, mins_remaining } = req.body;
+  if (!event_type) return res.status(400).json({ error: 'event_type required' });
+
+  try {
+    const raceR = await query('SELECT * FROM races WHERE id = $1', [req.params.id]);
+    if (raceR.rowCount === 0) return res.status(404).json({ error: 'Race not found' });
+    const race = raceR.rows[0];
+
+    if (event_type === 'driver_change') {
+      if (!driver_name || !driver_name.trim()) {
+        return res.status(400).json({ error: 'driver_name required' });
+      }
+      const name = driver_name.trim();
+
+      // Update race state
+      await query(
+        `INSERT INTO race_state (race_id, current_driver_name, low_fuel_notified)
+         VALUES ($1, $2, FALSE)
+         ON CONFLICT (race_id) DO UPDATE
+           SET current_driver_name = $2, low_fuel_notified = FALSE, last_event_at = NOW()`,
+        [race.id, name]
+      );
+
+      // Log event
+      await query(
+        `INSERT INTO iracing_events (event_type, race_id, driver_name, reported_by_user_id)
+         VALUES ('driver_change', $1, $2, $3)`,
+        [race.id, name, req.user.id]
+      );
+
+      res.json({ ok: true });
+
+    } else if (event_type === 'fuel_update') {
+      if (fuel_level === undefined || fuel_level === null) {
+        return res.status(400).json({ error: 'fuel_level required' });
+      }
+
+      await query(
+        `INSERT INTO iracing_events
+           (event_type, race_id, fuel_level, fuel_pct, mins_remaining, reported_by_user_id)
+         VALUES ('fuel_update', $1, $2, $3, $4, $5)`,
+        [race.id, fuel_level, fuel_pct || null, mins_remaining || null, req.user.id]
+      );
+
+      await query(
+        'UPDATE race_state SET last_fuel_level = $1, last_event_at = NOW() WHERE race_id = $2',
+        [fuel_level, race.id]
+      );
+
+      res.json({ ok: true });
+
+    } else {
+      res.status(400).json({ error: 'event_type must be driver_change or fuel_update' });
+    }
+  } catch (err) {
+    console.error('[Races] manual event error:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // GET /api/races/:id/events — recent telemetry events for a race
 router.get('/:id/events', authenticateToken, async (req, res) => {
   const limit = Math.min(parseInt(req.query.limit) || 50, 500);
