@@ -581,6 +581,96 @@ router.get('/live/session/:id/status', authenticateToken, async (req, res) => {
   }
 });
 
+// GET /api/telemetry/live/session/:id/frames
+// Returns frames after since_session_time, up to limit rows (max 1000).
+router.get('/live/session/:id/frames', authenticateToken, async (req, res) => {
+  try {
+    const sinceTime = parseFloat(req.query.since_session_time) || 0;
+    const limit = Math.min(parseInt(req.query.limit) || 300, 1000);
+
+    const sess = await query(
+      'SELECT id FROM sessions WHERE id = $1 AND user_id = $2',
+      [req.params.id, req.user.id]
+    );
+    if (!sess.rows.length) return res.status(404).json({ error: 'Session not found' });
+
+    const result = await query(
+      `SELECT session_time, lap_number, lap_dist_pct,
+              speed_kph, throttle, brake, steering_deg, gear, rpm,
+              lat_accel, long_accel, yaw_rate
+       FROM telemetry_frames
+       WHERE session_id = $1 AND user_id = $2 AND session_time > $3
+       ORDER BY session_time ASC
+       LIMIT $4`,
+      [req.params.id, req.user.id, sinceTime, limit]
+    );
+
+    const frames = result.rows;
+    res.json({
+      session_id:          parseInt(req.params.id),
+      latest_session_time: frames.length ? parseFloat(frames[frames.length - 1].session_time) : sinceTime,
+      frames
+    });
+  } catch (error) {
+    console.error('live/session/:id/frames error:', error);
+    res.status(500).json({ error: 'Failed to fetch frames' });
+  }
+});
+
+// GET /api/telemetry/live/session/:id/summary
+// Extends /status with current lap values and lap table — used by the live graph page.
+router.get('/live/session/:id/summary', authenticateToken, async (req, res) => {
+  try {
+    const sessResult = await query(
+      `SELECT id, track_name, car_name, session_type, ingest_mode, status, created_at, ended_at
+       FROM sessions WHERE id = $1 AND user_id = $2`,
+      [req.params.id, req.user.id]
+    );
+    if (!sessResult.rows.length) return res.status(404).json({ error: 'Session not found' });
+
+    const [latestFrame, lapsResult, frameCount] = await Promise.all([
+      query(
+        `SELECT session_time, lap_number, speed_kph, throttle, brake, gear, rpm, ts
+         FROM telemetry_frames WHERE session_id = $1 AND user_id = $2
+         ORDER BY session_time DESC LIMIT 1`,
+        [req.params.id, req.user.id]
+      ),
+      query(
+        `SELECT lap_number, lap_time FROM laps WHERE session_id = $1
+         ORDER BY lap_time ASC`,
+        [req.params.id]
+      ),
+      query('SELECT COUNT(*) FROM telemetry_frames WHERE session_id = $1', [req.params.id])
+    ]);
+
+    const lf = latestFrame.rows[0] ?? null;
+    const best = lapsResult.rows[0] ?? null;
+
+    res.json({
+      session:             sessResult.rows[0],
+      status:              sessResult.rows[0].status,
+      frame_count:         parseInt(frameCount.rows[0].count),
+      latest_session_time: lf ? parseFloat(lf.session_time) : null,
+      last_frame_ts:       lf?.ts ?? null,
+      current_lap:         lf?.lap_number ?? null,
+      best_lap_number:     best?.lap_number ?? null,
+      best_lap_time:       best?.lap_time ?? null,
+      lap_count:           lapsResult.rows.length,
+      laps:                lapsResult.rows,
+      latest: lf ? {
+        speed_kph: lf.speed_kph != null ? parseFloat(lf.speed_kph) : null,
+        throttle:  lf.throttle  != null ? parseFloat(lf.throttle)  : null,
+        brake:     lf.brake     != null ? parseFloat(lf.brake)     : null,
+        gear:      lf.gear,
+        rpm:       lf.rpm != null ? parseInt(lf.rpm) : null
+      } : null
+    });
+  } catch (error) {
+    console.error('live/session/:id/summary error:', error);
+    res.status(500).json({ error: 'Failed to fetch summary' });
+  }
+});
+
 // ── Existing session / lap routes ─────────────────────────────────
 
 // Get user's sessions

@@ -12,7 +12,7 @@ const navLinks = [
   { href: '/stint-planner', label: 'Stint Planner' },
   { href: '/calendar', label: 'Calendar' },
   { href: '/team', label: 'Team' },
-  { href: '/sessions', label: 'Sessions' },
+  { href: '/laps', label: 'Laps' },
 ];
 
 export default function Header() {

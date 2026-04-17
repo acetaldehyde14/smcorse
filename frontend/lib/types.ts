@@ -124,6 +124,91 @@ export interface RaceCalendarEvent {
   created_at: string;
 }
 
+// ── Live Telemetry ────────────────────────────────────────────
+export interface LiveFrame {
+  session_time: number;
+  lap_number: number | null;
+  lap_dist_pct: number | null;
+  speed_kph: number | null;
+  throttle: number | null;
+  brake: number | null;
+  steering_deg: number | null;
+  gear: number | null;
+  rpm: number | null;
+  lat_accel?: number | null;
+  long_accel?: number | null;
+  yaw_rate?: number | null;
+}
+
+export interface LiveSessionSummary {
+  session: Session & { ingest_mode: string; status: string };
+  status: string;
+  frame_count: number;
+  latest_session_time: number | null;
+  last_frame_ts: string | null;
+  current_lap: number | null;
+  best_lap_number: number | null;
+  best_lap_time: number | null;
+  lap_count: number;
+  laps: { lap_number: number; lap_time: number }[];
+  latest: {
+    speed_kph: number | null;
+    throttle: number | null;
+    brake: number | null;
+    gear: number | null;
+    rpm: number | null;
+  } | null;
+}
+
+export interface LapFeatures {
+  lap_id: number;
+  lap_time: number | null;
+  sector1_time: number | null;
+  sector2_time: number | null;
+  sector3_time: number | null;
+  avg_speed_kph: number | null;
+  max_speed_kph: number | null;
+  min_speed_kph: number | null;
+  throttle_full_pct: number | null;
+  brake_peak: number | null;
+  brake_zone_count: number | null;
+  steering_variance: number | null;
+  lift_count: number | null;
+  wheelspin_events: number | null;
+  lockup_events: number | null;
+  consistency_score: number | null;
+  smoothness_score: number | null;
+}
+
+export interface LapChannel {
+  name: string;
+  min?: number;
+  max?: number;
+}
+
+export interface LapChannels {
+  lap_id: number;
+  lap_number: number;
+  lap_time: number;
+  track: string;
+  car: string;
+  source: string;
+  frame_count: number;
+  duration_s: number;
+  sample_rate_hz: number | null;
+  channels: LapChannel[];
+}
+
+export interface AllLap {
+  id: number;
+  session_id: number;
+  lap_number: number;
+  lap_time: number;
+  track_name: string;
+  car_name: string;
+  created_at: string;
+}
+
 // ── Sessions / Telemetry ──────────────────────────────────────
 export interface Session {
   id: number;

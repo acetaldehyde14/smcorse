@@ -1,7 +1,8 @@
 import type {
   User, Race, RaceState, RaceEvent, StintRosterEntry,
   Team, TeamMember, Driver, RaceCalendarEvent,
-  Session, Lap, StintPlannerSession, RaceStintPlan, StintPlanAdvance, RaceLap
+  Session, Lap, StintPlannerSession, RaceStintPlan, StintPlanAdvance, RaceLap,
+  LiveFrame, LiveSessionSummary, LapFeatures, LapChannels, AllLap
 } from './types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? '';
@@ -104,8 +105,18 @@ export const team = {
 
 // ── Telemetry ─────────────────────────────────────────────────
 export const telemetry = {
-  sessions: () => get<Session[]>('/api/telemetry/sessions'),
-  session: (id: number) => get<{ session: Session; laps: Lap[] }>(`/api/telemetry/sessions/${id}`),
+  sessions:    () => get<{ sessions: Session[] }>('/api/telemetry/sessions').then(r => r.sessions),
+  session:     (id: number) => get<{ session: Session; laps: Lap[] }>(`/api/telemetry/sessions/${id}`),
+  allLaps:     () => get<{ laps: AllLap[] }>('/api/telemetry/all-laps').then(r => r.laps),
+  lapTelemetry:(id: number) => get<{ lap: { id: number; lap_number: number; lap_time: number; track: string; car: string }; source: string; telemetry: LiveFrame[] | Record<string, unknown> }>(`/api/telemetry/laps/${id}/telemetry`),
+  lapChannels: (id: number) => get<LapChannels>(`/api/telemetry/laps/${id}/channels`),
+  lapFeatures: (id: number) => get<{ features: LapFeatures }>(`/api/telemetry/laps/${id}/features`),
+  liveFrames:  (sessionId: number, sinceTime = 0, limit = 300) =>
+    get<{ session_id: number; latest_session_time: number; frames: LiveFrame[] }>(
+      `/api/telemetry/live/session/${sessionId}/frames?since_session_time=${sinceTime}&limit=${limit}`
+    ),
+  liveSummary: (sessionId: number) => get<LiveSessionSummary>(`/api/telemetry/live/session/${sessionId}/summary`),
+  liveStatus:  (sessionId: number) => get<{ session: Session; frame_count: number; lap_count: number }>(`/api/telemetry/live/session/${sessionId}/status`),
 };
 
 // ── Stint Planner ─────────────────────────────────────────────
