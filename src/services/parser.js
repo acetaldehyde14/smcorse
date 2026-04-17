@@ -804,6 +804,73 @@ class TelemetryParser {
   }
 
   /**
+   * Extract full-resolution frames from an IBT file for telemetry_frames insertion.
+   * Returns an array of frame objects with all available channels, sampled at targetHz.
+   */
+  async parseFrames(filePath, targetHz = 15) {
+    const buffer = await fs.readFile(filePath);
+    const header = this.parseIBTHeader(buffer);
+    const varHeaders = this.parseVarHeaders(buffer, header);
+
+    const ch = {
+      lap:          varHeaders['Lap'],
+      lapDistPct:   varHeaders['LapDistPct'],
+      lapTime:      varHeaders['LapCurrentLapTime'],
+      speed:        varHeaders['Speed'],
+      throttle:     varHeaders['Throttle'],
+      brake:        varHeaders['Brake'],
+      clutch:       varHeaders['Clutch'],
+      steering:     varHeaders['SteeringWheelAngle'],
+      steerTorque:  varHeaders['SteeringWheelTorque'],
+      rpm:          varHeaders['RPM'],
+      gear:         varHeaders['Gear'],
+      latAccel:     varHeaders['LatAccel'],
+      longAccel:    varHeaders['LongAccel'],
+      yawRate:      varHeaders['YawRate'],
+      trackTemp:    varHeaders['TrackTempCrew'],
+      airTemp:      varHeaders['AirTemp']
+    };
+
+    if (!ch.lap) return { frames: [], tickRate: header.tickRate };
+
+    const downsampleRate = Math.max(1, Math.floor(header.tickRate / targetHz));
+    const RAD_TO_DEG = 180 / Math.PI;
+    const frames = [];
+
+    for (let i = 0; i < header.totalRecords; i += downsampleRate) {
+      const recOffset = header.dataOffset + (i * header.bufLen);
+      if (recOffset + header.bufLen > buffer.length) break;
+
+      const lapNum = buffer.readInt32LE(recOffset + ch.lap.dataOffset);
+      if (lapNum < 0) continue;
+
+      const frame = {
+        session_time: parseFloat((i / header.tickRate).toFixed(3)),
+        lap_number:   lapNum
+      };
+
+      if (ch.lapDistPct)  frame.lap_dist_pct = buffer.readFloatLE(recOffset + ch.lapDistPct.dataOffset);
+      if (ch.speed)       frame.speed_kph    = buffer.readFloatLE(recOffset + ch.speed.dataOffset) * 3.6;
+      if (ch.throttle)    frame.throttle     = buffer.readFloatLE(recOffset + ch.throttle.dataOffset);
+      if (ch.brake)       frame.brake        = buffer.readFloatLE(recOffset + ch.brake.dataOffset);
+      if (ch.clutch)      frame.clutch       = buffer.readFloatLE(recOffset + ch.clutch.dataOffset);
+      if (ch.steering)    frame.steering_deg = buffer.readFloatLE(recOffset + ch.steering.dataOffset) * RAD_TO_DEG;
+      if (ch.steerTorque) frame.steer_torque = buffer.readFloatLE(recOffset + ch.steerTorque.dataOffset);
+      if (ch.rpm)         frame.rpm          = Math.round(buffer.readFloatLE(recOffset + ch.rpm.dataOffset));
+      if (ch.gear)        frame.gear         = buffer.readInt32LE(recOffset + ch.gear.dataOffset);
+      if (ch.latAccel)    frame.lat_accel    = buffer.readFloatLE(recOffset + ch.latAccel.dataOffset);
+      if (ch.longAccel)   frame.long_accel   = buffer.readFloatLE(recOffset + ch.longAccel.dataOffset);
+      if (ch.yawRate)     frame.yaw_rate     = buffer.readFloatLE(recOffset + ch.yawRate.dataOffset);
+      if (ch.trackTemp)   frame.track_temp_c = buffer.readFloatLE(recOffset + ch.trackTemp.dataOffset);
+      if (ch.airTemp)     frame.air_temp_c   = buffer.readFloatLE(recOffset + ch.airTemp.dataOffset);
+
+      frames.push(frame);
+    }
+
+    return { frames, tickRate: header.tickRate };
+  }
+
+  /**
    * Export telemetry to JSON (for API responses)
    */
   exportToJSON(parsedData, downsample = 10) {

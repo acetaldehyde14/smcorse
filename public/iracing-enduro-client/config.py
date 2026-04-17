@@ -6,9 +6,7 @@ _APPDATA = os.environ.get("APPDATA", os.path.expanduser("~"))
 CONFIG_DIR = os.path.join(_APPDATA, "iRacingEnduro")
 CONFIG_PATH = os.path.join(CONFIG_DIR, "config.json")
 
-# ── Change this to your server URL ────────────────────────────
-SERVER_URL = "https://smcorse.com"
-# ──────────────────────────────────────────────────────────────
+DEFAULT_SERVER_URL = "https://smcorse.com"
 
 POLL_INTERVAL_SECONDS = 2       # how often to read iRacing data
 LOW_FUEL_THRESHOLD_MINS = 20    # minutes of fuel left before alert
@@ -33,3 +31,9 @@ def save_config(data: dict):
 def clear_config():
     if os.path.exists(CONFIG_PATH):
         os.remove(CONFIG_PATH)
+
+
+def get_server_url() -> str:
+    """Return the configured server URL, falling back to the default."""
+    cfg = load_config()
+    return cfg.get("server_url", DEFAULT_SERVER_URL).rstrip("/")

@@ -1,0 +1,15 @@
+{
+  "/_not-found/page": "app/_not-found/page.js",
+  "/(auth)/page": "app/(auth)/page.js",
+  "/(protected)/admin/page": "app/(protected)/admin/page.js",
+  "/(protected)/assistant/page": "app/(protected)/assistant/page.js",
+  "/(protected)/coaching/page": "app/(protected)/coaching/page.js",
+  "/(protected)/calendar/page": "app/(protected)/calendar/page.js",
+  "/(protected)/race/page": "app/(protected)/race/page.js",
+  "/(protected)/library/page": "app/(protected)/library/page.js",
+  "/(protected)/dashboard/page": "app/(protected)/dashboard/page.js",
+  "/(protected)/sessions/page": "app/(protected)/sessions/page.js",
+  "/(protected)/settings/page": "app/(protected)/settings/page.js",
+  "/(protected)/stint-planner/page": "app/(protected)/stint-planner/page.js",
+  "/(protected)/team/page": "app/(protected)/team/page.js"
+}

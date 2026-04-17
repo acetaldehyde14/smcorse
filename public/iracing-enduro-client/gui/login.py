@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 import threading
 import api_client
-from config import save_config, load_config
+from config import save_config, load_config, DEFAULT_SERVER_URL
 
 
 class LoginWindow:
@@ -13,7 +13,7 @@ class LoginWindow:
 
     def _build_ui(self):
         self.root.title("iRacing Enduro Monitor — Login")
-        self.root.geometry("360x280")
+        self.root.geometry("360x330")
         self.root.resizable(False, False)
         self.root.configure(bg="#1a1a2e")
 
@@ -46,6 +46,20 @@ class LoginWindow:
         # Form
         form = tk.Frame(self.root, bg="#1a1a2e", padx=30, pady=20)
         form.pack(fill="both", expand=True)
+
+        tk.Label(form, text="Server URL", font=("Segoe UI", 9), fg="#888899", bg="#1a1a2e").pack(anchor="w")
+        cfg = load_config()
+        self.server_var = tk.StringVar(value=cfg.get("server_url", DEFAULT_SERVER_URL))
+        tk.Entry(
+            form,
+            textvariable=self.server_var,
+            font=("Segoe UI", 10),
+            bg="#16213e",
+            fg="#aaaacc",
+            insertbackground="white",
+            relief="flat",
+            bd=5,
+        ).pack(fill="x", pady=(2, 12))
 
         tk.Label(form, text="Username", font=("Segoe UI", 9), fg="#ccccdd", bg="#1a1a2e").pack(anchor="w")
         self.username_var = tk.StringVar()
@@ -99,6 +113,7 @@ class LoginWindow:
     def _on_login(self):
         username = self.username_var.get().strip()
         password = self.password_var.get().strip()
+        server_url = self.server_var.get().strip().rstrip("/") or DEFAULT_SERVER_URL
 
         if not username or not password:
             self.status_label.config(text="Please enter username and password")
@@ -109,15 +124,20 @@ class LoginWindow:
 
         def do_login():
             try:
-                result = api_client.login(username, password)
+                result = api_client.login(username, password, server_url=server_url)
                 token = result["token"]
                 user = result["user"]
-                save_config({"token": token, "username": user["username"], "user_id": user["id"]})
+                save_config({
+                    "token": token,
+                    "username": user["username"],
+                    "user_id": user["id"],
+                    "server_url": server_url,
+                })
                 self.root.after(0, lambda: self._login_success(user["username"]))
             except Exception as e:
                 msg = "Invalid username or password"
                 if "connect" in str(e).lower() or "timeout" in str(e).lower():
-                    msg = "Cannot reach server — check your connection"
+                    msg = f"Cannot reach {server_url} — check the URL and your connection"
                 self.root.after(0, lambda: self._login_failed(msg))
 
         threading.Thread(target=do_login, daemon=True).start()
@@ -134,21 +154,22 @@ class LoginWindow:
         self.root.mainloop()
 
 
-def show_login_if_needed(on_ready):
-    """Check stored token; show login window only if needed."""
+def show_login_if_needed(on_ready, _root=None):
+    """Check stored token; show login window only if needed.
+    _root: optional Tk root for thread-safe on_ready dispatch via after().
+    """
     cfg = load_config()
     token = cfg.get("token")
 
     if token:
-        # Validate token with server in background
         def check():
             if api_client.validate_token():
-                # Token valid — proceed
-                import sys
-                # Call on_ready from main thread
-                on_ready(cfg.get("username", "Driver"))
+                username = cfg.get("username", "Driver")
+                if _root:
+                    _root.after(0, lambda: on_ready(username))
+                else:
+                    on_ready(username)
             else:
-                # Token expired — show login
                 _show_login(on_ready)
 
         threading.Thread(target=check, daemon=True).start()

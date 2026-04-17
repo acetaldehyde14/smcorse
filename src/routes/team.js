@@ -3,6 +3,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const axios = require('axios');
+const bcrypt = require('bcryptjs');
 const { authenticateToken } = require('../middleware/auth');
 const { query } = require('../config/database');
 
@@ -36,7 +37,7 @@ router.get('/members', authenticateToken, async (req, res) => {
     const result = await query(
       `SELECT * FROM team_members ORDER BY name ASC`
     );
-    res.json({ members: result.rows });
+    res.json(result.rows);
   } catch (error) {
     console.error('Get team members error:', error);
     res.status(500).json({ error: 'Failed to fetch team members' });
@@ -46,7 +47,7 @@ router.get('/members', authenticateToken, async (req, res) => {
 // Add a team member
 router.post('/members', authenticateToken, async (req, res) => {
   try {
-    const { name, role, iracing_id, irating, safety_rating, preferred_car } = req.body;
+    const { name, role, iracing_id, irating, safety_rating, preferred_car, linked_user_id } = req.body;
 
     if (!name || !name.trim()) {
       return res.status(400).json({ error: 'Name is required' });
@@ -57,7 +58,7 @@ router.post('/members', authenticateToken, async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
       [
-        req.user.id,
+        linked_user_id || req.user.id,
         name.trim(),
         role || 'Driver',
         iracing_id || null,
@@ -164,6 +165,41 @@ router.patch('/profile', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Update profile error:', error);
     res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
+
+// PATCH /api/team/profile/username — change display username
+router.patch('/profile/username', authenticateToken, async (req, res) => {
+  const { username } = req.body;
+  if (!username || !username.trim()) return res.status(400).json({ error: 'Username is required' });
+  try {
+    const result = await query(
+      'UPDATE users SET username = $1 WHERE id = $2 RETURNING id, username',
+      [username.trim(), req.user.id]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update username error:', error);
+    res.status(500).json({ error: 'Failed to update username' });
+  }
+});
+
+// POST /api/team/profile/password — change password
+router.post('/profile/password', authenticateToken, async (req, res) => {
+  const { current_password, new_password } = req.body;
+  if (!current_password || !new_password) return res.status(400).json({ error: 'Both current and new password are required' });
+  if (new_password.length < 8) return res.status(400).json({ error: 'New password must be at least 8 characters' });
+  try {
+    const result = await query('SELECT password_hash FROM users WHERE id = $1', [req.user.id]);
+    const user = result.rows[0];
+    const valid = await bcrypt.compare(current_password, user.password_hash);
+    if (!valid) return res.status(401).json({ error: 'Current password is incorrect' });
+    const hash = await bcrypt.hash(new_password, 10);
+    await query('UPDATE users SET password_hash = $1 WHERE id = $2', [hash, req.user.id]);
+    res.json({ message: 'Password updated successfully' });
+  } catch (error) {
+    console.error('Update password error:', error);
+    res.status(500).json({ error: 'Failed to update password' });
   }
 });
 
@@ -343,98 +379,143 @@ router.delete('/stint-sessions/:id', authenticateToken, async (req, res) => {
 
 // POST /api/team/stint-planner/ai-plan
 router.post('/stint-planner/ai-plan', authenticateToken, async (req, res) => {
-  const { userPrompt, config, availability, blockMinutes, numBlocks } = req.body;
+  const { session_id, userPrompt } = req.body;
+  if (!session_id) return res.status(400).json({ error: 'session_id required' });
 
-  if (!config || !config.drivers || config.drivers.length === 0) {
-    return res.status(400).json({ error: 'No drivers in config' });
-  }
-
+  const BLOCK_MINUTES = 45;
   const OLLAMA_HOST  = process.env.OLLAMA_HOST  || 'http://23.141.136.111:11434';
   const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.3:70b-instruct-q4_K_M';
 
-  function toHHMM(startTime, offsetMins) {
-    const [h, m] = (startTime || '00:00').split(':').map(Number);
-    const tot = h * 60 + m + offsetMins;
+  function toHHMM(startISO, offsetMins) {
+    let baseH = 0, baseM = 0;
+    if (startISO) {
+      const d = new Date(startISO);
+      if (!isNaN(d)) { baseH = d.getHours(); baseM = d.getMinutes(); }
+    }
+    const tot = baseH * 60 + baseM + offsetMins;
     return String(Math.floor(tot / 60) % 24).padStart(2, '0') + ':' + String(tot % 60).padStart(2, '0');
   }
 
-  // Build readable availability summary
-  const availLines = Object.entries(availability || {}).map(([driver, hours]) => {
-    const slots = (hours || []).map((s, i) => {
-      const icon = s === 'free' ? 'FREE' : s === 'inconvenient' ? 'INCONV' : s === 'unavailable' ? 'UNAVAIL' : '?';
-      return `H${i}(${toHHMM(config.raceStartTime, i * 60)}):${icon}`;
-    }).join(' ');
-    return `  ${driver}: ${slots}`;
-  }).join('\n');
-
-  // Block time reference
-  const blockRef = Array.from({ length: numBlocks }, (_, i) =>
-    `B${i}=${toHHMM(config.raceStartTime, i * blockMinutes)}`
-  ).join(', ');
-
-  const systemPrompt = `You are an expert endurance race strategist. Your job is to create optimal driver stint schedules. You must respond ONLY with valid JSON — no markdown code fences, no preamble, no explanation outside the JSON object.`;
-
-  const userMessage = [
-    userPrompt ? `User notes: ${userPrompt}\n` : '',
-    `Race: ${config.raceName || 'Endurance Race'}`,
-    `Date/Start: ${config.raceDate || 'TBD'} at ${config.raceStartTime}`,
-    `Duration: ${config.raceDurationHours}h | Block size: ${blockMinutes}min | Total blocks: ${numBlocks}`,
-    `Min stint: ${config.minStintMinutes}min (${Math.ceil(config.minStintMinutes / blockMinutes)} block${Math.ceil(config.minStintMinutes / blockMinutes) !== 1 ? 's' : ''})`,
-    `Max stint: ${config.maxStintMinutes}min (${Math.floor(config.maxStintMinutes / blockMinutes)} blocks)`,
-    `Drivers: ${config.drivers.join(', ')}`,
-    ``,
-    `Availability (FREE=available, INCONV=inconvenient, UNAVAIL=not available, ?=unknown):`,
-    availLines || '  (none — assume all drivers free)',
-    ``,
-    `Block times: ${blockRef}`,
-    ``,
-    `Rules:`,
-    `1. Cover ALL ${numBlocks} blocks with NO gaps`,
-    `2. NEVER assign a driver marked UNAVAIL`,
-    `3. Prefer FREE drivers; use INCONV only when needed`,
-    `4. Each stint: ${Math.ceil(config.minStintMinutes / blockMinutes)}–${Math.floor(config.maxStintMinutes / blockMinutes)} blocks`,
-    `5. Distribute stints fairly across drivers`,
-    ``,
-    `Respond ONLY with this JSON (no other text):`,
-    `{"plan":[{"driver":"Name","startBlock":0,"endBlock":1,"startTime":"14:00","endTime":"15:30","availType":"free"},...],"explanation":"Brief strategy summary"}`
-  ].join('\n');
-
   try {
+    // Load session from DB
+    const sessR = await query('SELECT * FROM stint_planner_sessions WHERE id = $1', [session_id]);
+    if (sessR.rowCount === 0) return res.status(404).json({ error: 'Session not found' });
+    const sess = sessR.rows[0];
+    const config = typeof sess.config === 'string' ? JSON.parse(sess.config) : sess.config;
+    const availability = typeof sess.availability === 'string' ? JSON.parse(sess.availability) : sess.availability;
+
+    const durationHours = config.duration_hours || 6;
+    const numBlocks = Math.ceil((durationHours * 60) / BLOCK_MINUTES);
+    const minStintBlocks = Math.max(1, Math.ceil((config.min_stint_mins || 45) / BLOCK_MINUTES));
+    const maxStintBlocks = Math.max(minStintBlocks, Math.floor((config.max_stint_mins || 180) / BLOCK_MINUTES));
+
+    // Resolve driver names from selected_drivers user IDs
+    const selectedIds = config.selected_drivers || [];
+    if (selectedIds.length === 0) return res.status(400).json({ error: 'No drivers selected for this session' });
+
+    const usersR = await query(
+      'SELECT id, username, iracing_name FROM users WHERE id = ANY($1)',
+      [selectedIds]
+    );
+    const driverMap = {}; // id -> display name
+    usersR.rows.forEach(u => { driverMap[u.id] = u.iracing_name || u.username; });
+    const driverNames = selectedIds.map(id => driverMap[id]).filter(Boolean);
+    if (driverNames.length === 0) return res.status(400).json({ error: 'Selected drivers not found in database' });
+
+    // Build block-level availability per driver
+    const availLines = selectedIds.map(uid => {
+      const name = driverMap[uid] || `User${uid}`;
+      const dAvail = availability[String(uid)] || {};
+      const slots = Array.from({ length: numBlocks }, (_, bi) => {
+        const hourIdx = Math.floor((bi * BLOCK_MINUTES) / 60);
+        const status = dAvail[String(hourIdx)] || 'unknown';
+        const icon = status === 'free' ? 'FREE' : status === 'inconvenient' ? 'INCONV' : status === 'unavailable' ? 'UNAVAIL' : '?';
+        return `B${bi}(${toHHMM(config.start_time, bi * BLOCK_MINUTES)}):${icon}`;
+      }).join(' ');
+      return `  ${name}: ${slots}`;
+    }).join('\n');
+
+    const blockRef = Array.from({ length: numBlocks }, (_, i) =>
+      `B${i}=${toHHMM(config.start_time, i * BLOCK_MINUTES)}`
+    ).join(', ');
+
+    const systemPrompt = `You are an expert endurance race strategist creating optimal driver stint schedules. Respond ONLY with valid JSON — no markdown, no preamble, no explanation outside the JSON.`;
+
+    const userMessage = [
+      userPrompt ? `User notes: ${userPrompt}\n` : '',
+      `Race: ${config.race_name || 'Endurance Race'}`,
+      `Start: ${config.start_time || 'TBD'} | Duration: ${durationHours}h`,
+      `Block size: ${BLOCK_MINUTES}min | Total blocks: ${numBlocks}`,
+      `Stint length: ${minStintBlocks}–${maxStintBlocks} blocks (${minStintBlocks * BLOCK_MINUTES}–${maxStintBlocks * BLOCK_MINUTES} min)`,
+      `Drivers: ${driverNames.join(', ')}`,
+      ``,
+      `Availability (FREE=available, INCONV=inconvenient, UNAVAIL=not available, ?=unknown):`,
+      availLines,
+      ``,
+      `Block start times: ${blockRef}`,
+      ``,
+      `Rules:`,
+      `1. Cover ALL ${numBlocks} blocks with NO gaps. endBlock is EXCLUSIVE (like Python slices): a 1-block stint at block 3 = startBlock:3,endBlock:4. endBlock of one stint MUST equal startBlock of next.`,
+      `2. NEVER assign a driver marked UNAVAIL for any block in their stint`,
+      `3. Prefer FREE slots; use INCONV only when necessary`,
+      `4. Each stint must be ${minStintBlocks}–${maxStintBlocks} blocks long`,
+      `5. Distribute stints fairly`,
+      ``,
+      `Respond ONLY with this exact JSON structure:`,
+      `{"plan":[{"driver":"Name","startBlock":0,"endBlock":2,"startTime":"14:00","endTime":"15:30"},...],"explanation":"one sentence strategy summary"}`,
+    ].join('\n');
+
     const response = await axios.post(
       `${OLLAMA_HOST}/api/chat`,
       {
         model: OLLAMA_MODEL,
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user',   content: userMessage }
+          { role: 'user',   content: userMessage },
         ],
         stream: false,
-        options: { temperature: 0.15, top_p: 0.9 }
+        options: { temperature: 0.1, top_p: 0.9 },
       },
       { timeout: 120000 }
     );
 
     const text = response.data.message.content;
-
-    // Extract JSON object from response
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      console.error('AI stint plan — non-JSON response:', text.substring(0, 300));
-      return res.status(422).json({ error: 'AI returned a non-JSON response. Try again or use "Generate from Grid".', message: text.substring(0, 300) });
+      console.error('AI stint plan — non-JSON:', text.substring(0, 300));
+      return res.status(422).json({ error: 'AI returned a non-JSON response', message: text.substring(0, 300) });
     }
 
     let parsed;
-    try {
-      parsed = JSON.parse(jsonMatch[0]);
-    } catch (parseErr) {
-      return res.status(422).json({ error: 'Failed to parse AI response as JSON', message: jsonMatch[0].substring(0, 300) });
-    }
+    try { parsed = JSON.parse(jsonMatch[0]); }
+    catch (e) { return res.status(422).json({ error: 'Failed to parse AI JSON', message: jsonMatch[0].substring(0, 300) }); }
 
     if (!parsed.plan || !Array.isArray(parsed.plan) || parsed.plan.length === 0) {
       return res.status(422).json({ error: 'AI returned an empty plan', explanation: parsed.explanation || '' });
     }
 
-    res.json({ plan: parsed.plan, explanation: parsed.explanation || '' });
+    // Normalize plan: convert to frontend format (startBlock/endBlock + colors)
+    const COLORS = ['#0066cc','#00aaff','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6'];
+    const driverColorMap = {};
+    let colorIdx = 0;
+    const plan = parsed.plan.map(block => {
+      if (!driverColorMap[block.driver]) driverColorMap[block.driver] = COLORS[colorIdx++ % COLORS.length];
+      const sb = block.startBlock ?? 0;
+      const eb = Math.max(sb + 1, block.endBlock ?? sb + 1); // endBlock must always be > startBlock
+      return {
+        driver_name: block.driver,
+        startBlock: sb,
+        endBlock: eb,
+        startTime: block.startTime || toHHMM(config.start_time, sb * BLOCK_MINUTES),
+        endTime: block.endTime || toHHMM(config.start_time, eb * BLOCK_MINUTES),
+        color: driverColorMap[block.driver],
+      };
+    });
+
+    // Save plan back to session
+    await query('UPDATE stint_planner_sessions SET plan=$1, updated_at=NOW() WHERE id=$2', [JSON.stringify(plan), session_id]);
+
+    res.json({ plan, explanation: parsed.explanation || '', blockMinutes: BLOCK_MINUTES, numBlocks });
   } catch (e) {
     console.error('AI stint plan error:', e.message);
     res.status(500).json({ error: 'AI planning failed: ' + e.message });

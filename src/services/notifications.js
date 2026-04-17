@@ -74,23 +74,23 @@ function initDiscord() {
     if (interaction.commandName !== 'register') return;
 
     const discordUserId = interaction.user.id;
-    const discordUsername = interaction.user.username;
+    const siteUsername = interaction.options.getString('username');
 
     try {
       const result = await query(
         `UPDATE users SET discord_user_id = $1
          WHERE LOWER(username) = LOWER($2)
          RETURNING username`,
-        [discordUserId, discordUsername]
+        [discordUserId, siteUsername]
       );
       if (result.rowCount > 0) {
         await interaction.reply({
-          content: 'Registered! You\'ll receive iRacing alerts via DM.',
+          content: `✅ Linked! You'll now receive iRacing alerts via DM, ${result.rows[0].username}.`,
           ephemeral: true,
         });
       } else {
         await interaction.reply({
-          content: `Couldn't find your account. Make sure your Discord username matches your app username.\nYour Discord ID: \`${discordUserId}\``,
+          content: `❌ No account found with username \`${siteUsername}\`. Check your smcorse.com username and try again.`,
           ephemeral: true,
         });
       }
@@ -129,10 +129,12 @@ async function sendDiscordDM(discordUserId, embed) {
   }
 }
 
-async function sendDiscordWebhook(webhookUrl, embed) {
+async function sendDiscordWebhook(webhookUrl, payload) {
   if (!webhookUrl) return;
+  // payload can be { embeds: [...] } or { content, embeds: [...] }
+  const body = Array.isArray(payload?.embeds) ? payload : { embeds: [payload] };
   try {
-    await axios.post(webhookUrl, { embeds: [embed] }, { timeout: 5000 });
+    await axios.post(webhookUrl, body, { timeout: 5000 });
   } catch (e) {
     console.error('[Discord Webhook]', e.message);
   }
@@ -150,14 +152,37 @@ async function notifyUser(user, telegramMsg, discordEmbed) {
 
 // ── Notification Events ────────────────────────────────────────
 
-async function notifyDriverChange(driverName, driverUser, nextDriver) {
+// stintPlanInfo = { deviationMins, nextNextDriverName, plannedDurationMins, currentIndex, totalBlocks } | null
+async function notifyDriverChange(driverName, driverUser, nextDriver, stintPlanInfo) {
   const teamWebhook = process.env.DISCORD_TEAM_WEBHOOK;
   const timestamp = new Date().toISOString();
 
+  // Build plan deviation text
+  let planLine = '';
+  if (stintPlanInfo) {
+    const { deviationMins, nextNextDriverName, plannedDurationMins } = stintPlanInfo;
+    if (deviationMins !== null) {
+      const absMin = Math.abs(deviationMins);
+      if (absMin <= 2) {
+        planLine = '\n⏱ **On schedule**';
+      } else if (deviationMins > 0) {
+        planLine = `\n⏱ **${absMin} min early** vs plan`;
+      } else {
+        planLine = `\n⏱ **${absMin} min late** vs plan`;
+      }
+    }
+    if (plannedDurationMins) {
+      planLine += `\n🕐 Planned stint: **${plannedDurationMins} min**`;
+    }
+    if (nextNextDriverName) {
+      planLine += `\n👤 After this: **${nextNextDriverName}**`;
+    }
+  }
+
   // 1. Team channel webhook
   await sendDiscordWebhook(teamWebhook, {
-    title: 'Driver Change',
-    description: `**${driverName}** is now in the car.`,
+    title: '🏎️ Driver Change',
+    description: `**${driverName}** is now in the car.${planLine}`,
     color: 0x1e90ff,
     timestamp,
     footer: { text: 'SM CORSE Enduro Monitor' },
@@ -165,12 +190,16 @@ async function notifyDriverChange(driverName, driverUser, nextDriver) {
 
   // 2. Current driver — confirm they're in
   if (driverUser) {
+    let dmPlanLine = '';
+    if (stintPlanInfo?.plannedDurationMins) {
+      dmPlanLine = `\nPlanned stint: <b>${stintPlanInfo.plannedDurationMins} min</b>`;
+    }
     await notifyUser(
       driverUser,
-      `<b>You're in the car, ${driverUser.username}!</b>\nYour stint has started. Drive fast, stay clean!`,
+      `<b>You're in the car, ${driverUser.username}!</b>\nYour stint has started. Drive fast, stay clean!${dmPlanLine}`,
       {
-        title: 'Your Stint Has Started',
-        description: 'You are now in the car. Good luck!',
+        title: '🟢 Your Stint Has Started',
+        description: `You are now in the car. Good luck!${stintPlanInfo?.plannedDurationMins ? `\nPlanned duration: **${stintPlanInfo.plannedDurationMins} min**` : ''}`,
         color: 0x00cc44,
         timestamp,
         footer: { text: 'SM CORSE Enduro Monitor' },
@@ -224,6 +253,162 @@ async function notifyLowFuel(minsRemaining, fuelLevel, nextDriver) {
   }
 }
 
+// ── Upcoming Stint Alert ───────────────────────────────────────
+
+async function notifyUpcomingStint(driverName, driverUser, minsUntil) {
+  const teamWebhook = process.env.DISCORD_TEAM_WEBHOOK;
+  const timestamp   = new Date().toISOString();
+  const mins        = Math.round(minsUntil);
+
+  // 1. Team channel embed
+  await sendDiscordWebhook(teamWebhook, {
+    embeds: [{
+      title: '⏰ Upcoming Stint',
+      description: `**${driverName}** — stint starting in **${mins} minutes**. Get ready!`,
+      color: 0xffa500,
+      timestamp,
+      footer: { text: 'SM CORSE Enduro Monitor' },
+    }],
+    // Ping the driver in the channel message if we know their Discord ID
+    ...(driverUser?.discord_user_id
+      ? { content: `<@${driverUser.discord_user_id}> your stint starts in **${mins} minutes** — get strapped in!` }
+      : {}),
+  });
+
+  // 2. DM the driver directly
+  if (driverUser?.discord_user_id) {
+    await sendDiscordDM(driverUser.discord_user_id, {
+      title: '⏰ Your Stint is Coming Up!',
+      description: `Your stint starts in **${mins} minutes**. Start getting ready now!`,
+      color: 0xffa500,
+      timestamp,
+      footer: { text: 'SM CORSE Enduro Monitor' },
+    });
+  }
+
+  // 3. Telegram DM if linked
+  if (driverUser?.telegram_chat_id) {
+    await sendTelegram(
+      driverUser.telegram_chat_id,
+      `<b>⏰ Upcoming Stint — ${driverName}</b>\nYour stint starts in <b>${mins} minutes</b>. Get ready!`
+    );
+  }
+}
+
+// ── Background checker: fires 20-min and 10-min alerts ──────────
+
+// Each threshold has its own flag stored on the plan block.
+const ALERT_THRESHOLDS = [
+  { mins: 20, flag: 'pre_stint_notified_20' },
+  { mins: 10, flag: 'pre_stint_notified_10' },
+];
+const CHECK_INTERVAL_MS = 60 * 1000; // every 1 minute
+let _alertInterval = null;
+
+async function checkUpcomingStints() {
+  try {
+    const racesR = await query(
+      `SELECT r.*, rs.current_stint_index
+       FROM races r
+       LEFT JOIN race_state rs ON rs.race_id = r.id
+       WHERE r.is_active = TRUE AND r.active_stint_session_id IS NOT NULL`
+    );
+
+    for (const race of racesR.rows) {
+      if (!race.started_at) continue;
+
+      const sessionR = await query(
+        'SELECT id, plan FROM stint_planner_sessions WHERE id = $1',
+        [race.active_stint_session_id]
+      );
+      if (!sessionR.rows[0]) continue;
+
+      const session      = sessionR.rows[0];
+      const plan         = Array.isArray(session.plan) ? [...session.plan].map(b => ({ ...b })) : [];
+      const currentIndex = race.current_stint_index || 0;
+      const raceStartMs  = new Date(race.started_at).getTime();
+      const now          = Date.now();
+      let planDirty      = false;
+
+      for (let i = currentIndex + 1; i < plan.length; i++) {
+        const block = plan[i];
+        if (block.actual_start_at) continue; // already driving
+
+        const startBlock = block.startBlock ?? (block.start_hour != null
+          ? Math.round(block.start_hour * 60 / 45) : null);
+        if (startBlock == null) continue;
+
+        const plannedStartMs = raceStartMs + startBlock * 45 * 60 * 1000;
+        const minsUntilStart = (plannedStartMs - now) / 60000;
+
+        for (const { mins, flag } of ALERT_THRESHOLDS) {
+          if (block[flag]) continue; // already fired for this threshold
+          // Fire within a ±2 minute window around the threshold
+          if (minsUntilStart >= mins - 2 && minsUntilStart <= mins + 2) {
+            const driverName = (block.driver_name || block.driver || '').trim();
+            if (!driverName) continue;
+
+            const userR = await query(
+              `SELECT * FROM users
+               WHERE LOWER(iracing_name) = LOWER($1) OR LOWER(username) = LOWER($1)
+               LIMIT 1`,
+              [driverName]
+            );
+            const driverUser = userR.rows[0] || null;
+
+            console.log(`[StintAlert] ${mins}m alert — ${driverName} (race ${race.id})`);
+            await notifyUpcomingStint(driverName, driverUser, minsUntilStart);
+
+            plan[i] = { ...plan[i], [flag]: true };
+            planDirty = true;
+          }
+        }
+      }
+
+      if (planDirty) {
+        await query(
+          'UPDATE stint_planner_sessions SET plan = $1::jsonb, updated_at = NOW() WHERE id = $2',
+          [JSON.stringify(plan), session.id]
+        );
+      }
+    }
+  } catch (e) {
+    console.error('[StintAlert] check error:', e.message);
+  }
+}
+
+function startStintAlerts() {
+  if (_alertInterval) return;
+  _alertInterval = setInterval(checkUpcomingStints, CHECK_INTERVAL_MS);
+  console.log('[StintAlert] Background stint alerts started (20m + 10m)');
+}
+
+function stopStintAlerts() {
+  if (_alertInterval) { clearInterval(_alertInterval); _alertInterval = null; }
+}
+
+async function notifyBoxedAndOut(driverName, stintPlanInfo) {
+  const teamWebhook = process.env.DISCORD_TEAM_WEBHOOK;
+  const timestamp = new Date().toISOString();
+
+  const stintNum = stintPlanInfo?.currentIndex != null ? stintPlanInfo.currentIndex + 1 : '?';
+  let extraLines = `\n📋 Now on **Stint ${stintNum}**`;
+  if (stintPlanInfo?.nextNextDriverName) {
+    extraLines += `\n👤 Next up: **${stintPlanInfo.nextNextDriverName}**`;
+  }
+  if (stintPlanInfo?.plannedDurationMins) {
+    extraLines += `\n🕐 Planned stint: **${stintPlanInfo.plannedDurationMins} min**`;
+  }
+
+  await sendDiscordWebhook(teamWebhook, {
+    title: '🔄 Pit Stop — Same Driver Back Out',
+    description: `**${driverName}** has pitted and gone back out.${extraLines}`,
+    color: 0xffa500,
+    timestamp,
+    footer: { text: 'SM CORSE Enduro Monitor' },
+  });
+}
+
 // ── Graceful shutdown helper ───────────────────────────────────
 function shutdownBots() {
   if (telegram) {
@@ -238,7 +423,10 @@ module.exports = {
   initTelegram: () => { telegram = initTelegram(); },
   initDiscord:  () => { discordBot = initDiscord(); },
   shutdownBots,
+  startStintAlerts,
+  stopStintAlerts,
   notifyDriverChange,
+  notifyBoxedAndOut,
   notifyLowFuel,
   sendTelegram,
   sendDiscordWebhook,

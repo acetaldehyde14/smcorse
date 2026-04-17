@@ -22,11 +22,12 @@ const analysisRoutes = require('./src/routes/analysis');
 const libraryRoutes = require('./src/routes/library');
 const assistantRoutes = require('./src/routes/assistant');
 const teamRoutes = require('./src/routes/team');
+const teamsRoutes = require('./src/routes/teams');
 const racesRoutes = require('./src/routes/races');
 const iracingRoutes = require('./src/routes/iracing');
 const { handleUploadError } = require('./src/middleware/upload');
 const { authenticateToken } = require('./src/middleware/auth');
-const { initTelegram, initDiscord, shutdownBots } = require('./src/services/notifications');
+const { initTelegram, initDiscord, shutdownBots, startStintAlerts, stopStintAlerts } = require('./src/services/notifications');
 
 // Middleware
 app.use(helmet({
@@ -37,6 +38,8 @@ app.use(cors({
   origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
   credentials: true
 }));
+// Raw body for gzip-compressed telemetry — must be before bodyParser.json()
+app.use('/api/iracing/telemetry', express.raw({ type: '*/*', limit: '2mb' }));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static('public'));
@@ -88,10 +91,15 @@ app.get('/settings', requireAuth, (req, res) => {
 });
 
 app.post('/api/signup', async (req, res) => {
-  const { email, password, name } = req.body;
+  const { email, password, name, username } = req.body;
 
-  if (!email || !password || !name) {
+  if (!email || !password || !name || !username) {
     return res.status(400).json({ error: 'All fields are required' });
+  }
+
+  // Validate username format (letters, numbers, underscores, hyphens, 3–30 chars)
+  if (!/^[a-zA-Z0-9_-]{3,30}$/.test(username)) {
+    return res.status(400).json({ error: 'Username must be 3–30 characters (letters, numbers, _ or -)' });
   }
 
   // Validate email format
@@ -106,10 +114,10 @@ app.post('/api/signup', async (req, res) => {
   }
 
   try {
-    // Check if user already exists (PostgreSQL)
-    const existingUser = await query('SELECT * FROM users WHERE email = $1', [email]);
+    // Check if email or username already exists
+    const existingUser = await query('SELECT id FROM users WHERE email = $1 OR LOWER(username) = LOWER($2)', [email, username]);
     if (existingUser.rows.length > 0) {
-      return res.status(400).json({ error: 'Email already registered' });
+      return res.status(400).json({ error: 'Email or username already taken' });
     }
 
     // Hash password
@@ -118,7 +126,7 @@ app.post('/api/signup', async (req, res) => {
     // Insert user (PostgreSQL)
     const result = await query(
       'INSERT INTO users (email, password_hash, username) VALUES ($1, $2, $3) RETURNING id, username',
-      [email, hashedPassword, name]
+      [email, hashedPassword, username]
     );
 
     // Create session
@@ -141,7 +149,7 @@ app.post('/api/login', async (req, res) => {
 
   try {
     // Find user (PostgreSQL)
-    const result = await query('SELECT * FROM users WHERE email = $1', [email]);
+    const result = await query('SELECT * FROM users WHERE LOWER(email) = LOWER($1)', [email]);
     const user = result.rows[0];
 
     if (!user) {
@@ -258,6 +266,7 @@ app.use('/api/analysis', analysisRoutes);
 app.use('/api/library', libraryRoutes);
 app.use('/api/assistant', assistantRoutes);
 app.use('/api/team', teamRoutes);
+app.use('/api/teams', teamsRoutes);
 app.use('/api/races', racesRoutes);
 app.use('/api/iracing', iracingRoutes);
 
@@ -346,8 +355,8 @@ app.delete('/api/admin/users/:id', requireAdmin, async (req, res) => {
 app.get('/api/admin/races', requireAdmin, async (req, res) => {
   try {
     const result = await query(
-      `SELECT r.id, r.name, r.status, r.created_at,
-              (SELECT COUNT(*) FROM race_roster WHERE race_id = r.id) AS driver_count
+      `SELECT r.id, r.name, r.is_active, r.created_at,
+              (SELECT COUNT(*) FROM stint_roster WHERE race_id = r.id) AS driver_count
        FROM races r ORDER BY r.created_at DESC`
     );
     res.json(result.rows);
@@ -369,7 +378,7 @@ app.delete('/api/admin/races/:id', requireAdmin, async (req, res) => {
 app.get('/api/admin/team', requireAdmin, async (req, res) => {
   try {
     const result = await query(
-      'SELECT id, name, role, iracing_name, discord_id, telegram_chat_id, created_at FROM team_members ORDER BY name'
+      'SELECT id, name, role, iracing_name, discord_user_id, telegram_chat_id, created_at FROM team_members ORDER BY name'
     );
     res.json(result.rows);
   } catch (e) {
@@ -389,6 +398,29 @@ app.delete('/api/admin/team/:id', requireAdmin, async (req, res) => {
 // ============================================
 // HEALTH CHECK & ERROR HANDLING
 // ============================================
+
+// Desktop client calls this on startup to confirm connection and get race context
+app.post('/api/client/register', authenticateToken, async (req, res) => {
+  try {
+    const raceResult = await query('SELECT * FROM races WHERE is_active = TRUE LIMIT 1');
+    const race = raceResult.rows[0] || null;
+    res.json({
+      ok: true,
+      user: { id: req.user.id, username: req.user.username },
+      active_race: race,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.get('/api/client/version', (req, res) => {
+  res.json({
+    version: '1.0.5',
+    download_url: 'https://smcorse.com/downloads/iRacingEnduro-Setup.exe',
+    changelog: 'Login and fixed updater'
+  });
+});
 
 app.get('/health', async (req, res) => {
   try {
@@ -481,11 +513,15 @@ app.listen(PORT, '0.0.0.0', () => {
   // Initialize notification bots
   initTelegram();
   initDiscord();
+
+  // Start background 20-min stint alerts
+  startStintAlerts();
 });
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('SIGTERM received, closing server...');
+  stopStintAlerts();
   shutdownBots();
   pool.end(() => {
     console.log('Database connections closed');
