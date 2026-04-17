@@ -7,12 +7,13 @@ import { useAuth } from '@/lib/auth';
 import { Avatar } from '@/components/ui/Avatar';
 
 const navLinks = [
-  { href: '/dashboard', label: 'Dashboard' },
-  { href: '/race', label: 'Live Race' },
+  { href: '/dashboard',     label: 'Dashboard' },
+  { href: '/live',          label: 'Live Tracker' },
+  { href: '/race',          label: 'Race (Teams)' },
   { href: '/stint-planner', label: 'Stint Planner' },
-  { href: '/calendar', label: 'Calendar' },
-  { href: '/team', label: 'Team' },
-  { href: '/laps', label: 'Laps' },
+  { href: '/calendar',      label: 'Calendar' },
+  { href: '/team',          label: 'Team' },
+  { href: '/laps',          label: 'Laps' },
 ];
 
 export default function Header() {

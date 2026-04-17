@@ -117,6 +117,8 @@ export const telemetry = {
     ),
   liveSummary: (sessionId: number) => get<LiveSessionSummary>(`/api/telemetry/live/session/${sessionId}/summary`),
   liveStatus:  (sessionId: number) => get<{ session: Session; frame_count: number; lap_count: number }>(`/api/telemetry/live/session/${sessionId}/status`),
+  liveActive:  () => get<{ session_id: number | null }>('/api/telemetry/live/active'),
+  liveSessions: () => get<{ sessions: (Session & { ingest_mode: string; status: string })[] }>('/api/telemetry/sessions').then(r => r.sessions.filter((s: any) => s.ingest_mode === 'live')),
 };
 
 // ── Stint Planner ─────────────────────────────────────────────

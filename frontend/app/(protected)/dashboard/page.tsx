@@ -4,11 +4,12 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 
 const featureCards = [
-  { href: '/race', icon: '🏁', title: 'Live Race Tracker', desc: 'Monitor active endurance race in real-time', color: 'from-primary/20 to-transparent' },
+  { href: '/live', icon: '📡', title: 'Live Race Tracker', desc: 'Live telemetry graphs — speed, throttle, brake, steering', color: 'from-green-500/20 to-transparent' },
+  { href: '/race', icon: '🏁', title: 'Live Race Tracker (Teams)', desc: 'Driver stints, fuel, standings and event log', color: 'from-primary/20 to-transparent' },
   { href: '/stint-planner', icon: '📅', title: 'Stint Planner', desc: 'Plan driver availability and stints', color: 'from-accent/20 to-transparent' },
   { href: '/calendar', icon: '🗓️', title: 'Race Calendar', desc: 'Upcoming events and countdown timers', color: 'from-emerald-500/20 to-transparent' },
   { href: '/team', icon: '👥', title: 'Team', desc: 'Manage roster and notification settings', color: 'from-purple-500/20 to-transparent' },
-  { href: '/sessions', icon: '📊', title: 'Telemetry', desc: 'Upload and analyse your lap data', color: 'from-yellow-500/20 to-transparent' },
+  { href: '/laps', icon: '📊', title: 'Telemetry', desc: 'Browse lap library, traces and features', color: 'from-yellow-500/20 to-transparent' },
   { href: '/coaching', icon: '🤖', title: 'AI Coaching', desc: 'Compare laps and get AI feedback', color: 'from-pink-500/20 to-transparent' },
   { href: '/assistant', icon: '💬', title: 'Race Engineer', desc: 'Chat with your AI race engineer', color: 'from-orange-500/20 to-transparent' },
   { href: '/library', icon: '📚', title: 'Lap Library', desc: 'Reference laps and leaderboards', color: 'from-teal-500/20 to-transparent' },

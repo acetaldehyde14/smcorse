@@ -581,6 +581,24 @@ router.get('/live/session/:id/status', authenticateToken, async (req, res) => {
   }
 });
 
+// GET /api/telemetry/live/active
+// Returns the most recent open live session for the authenticated user.
+router.get('/live/active', authenticateToken, async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT id FROM sessions
+       WHERE user_id = $1 AND status = 'open' AND ingest_mode = 'live'
+       ORDER BY created_at DESC LIMIT 1`,
+      [req.user.id]
+    );
+    if (!result.rows.length) return res.json({ session_id: null });
+    res.json({ session_id: result.rows[0].id });
+  } catch (error) {
+    console.error('live/active error:', error);
+    res.status(500).json({ error: 'Failed to fetch active session' });
+  }
+});
+
 // GET /api/telemetry/live/session/:id/frames
 // Returns frames after since_session_time, up to limit rows (max 1000).
 router.get('/live/session/:id/frames', authenticateToken, async (req, res) => {
