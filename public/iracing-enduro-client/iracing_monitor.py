@@ -3,8 +3,8 @@ import time
 import irsdk
 from config import POLL_INTERVAL_SECONDS
 
-TELEM_HZ         = 10    # samples per second to collect
-TELEM_BATCH_SIZE = 20    # send every 20 samples (~2s at 10Hz)
+TELEM_HZ         = 30    # samples per second to collect
+TELEM_BATCH_SIZE = 90    # send every 90 samples (~3s at 30Hz)
 
 
 class IRacingMonitor:
@@ -26,6 +26,8 @@ class IRacingMonitor:
         self._connected = False
         self._telem_buf = []      # pending samples
         self._telem_lock = threading.Lock()
+        self._live_session_id = None   # server-assigned session ID for current live session
+        self._last_track = None        # track name, used to detect session changes
 
     def start(self):
         self._running = True
@@ -36,6 +38,17 @@ class IRacingMonitor:
 
     def stop(self):
         self._running = False
+        self._close_live_session()
+
+    def _close_live_session(self):
+        """End the current live session on the server if one is open."""
+        sid = self._live_session_id
+        if sid is None:
+            return
+        self._live_session_id = None
+        self._last_track = None
+        print(f"[Monitor] Ending live session {sid} on server…")
+        threading.Thread(target=api_client.end_session, args=(sid,), daemon=True).start()
 
     def is_connected(self):
         return self._connected
@@ -62,6 +75,7 @@ class IRacingMonitor:
                     if self._connected:
                         self._connected = False
                         self._set_status("iRacing closed. Waiting...")
+                        self._close_live_session()
                     time.sleep(5)
                     continue
 
@@ -88,7 +102,6 @@ class IRacingMonitor:
             self._check_driver()
             self._check_fuel()
             self._check_position()
-            self._collect_telem_sample()
         except Exception as e:
             print(f"[Monitor] Read error: {e}")
 
@@ -110,6 +123,12 @@ class IRacingMonitor:
                     return None
                 return round(sum(arr[:3]) / 3, 1)
 
+            player_idx = self.ir["PlayerCarIdx"] or 0
+            car_x = self.ir["CarIdxX"]
+            car_y = self.ir["CarIdxY"]
+            x = round(car_x[player_idx], 2) if car_x and player_idx < len(car_x) else None
+            y = round(car_y[player_idx], 2) if car_y and player_idx < len(car_y) else None
+
             sample = {
                 "t":    round(t, 3),
                 "spd":  safe("Speed"),
@@ -119,6 +138,8 @@ class IRacingMonitor:
                 "gear": self.ir["Gear"],
                 "rpm":  round(self.ir["RPM"]) if self.ir["RPM"] else None,
                 "ldp":  safe("LapDistPct"),
+                "x":    x,
+                "y":    y,
                 # Tyre temps: inner/middle/outer per corner
                 "tfl": avg3(self.ir["LFtempCL"] and [self.ir["LFtempCL"], self.ir["LFtempCM"], self.ir["LFtempCR"]]),
                 "tfr": avg3(self.ir["RFtempCL"] and [self.ir["RFtempCL"], self.ir["RFtempCM"], self.ir["RFtempCR"]]),
@@ -137,24 +158,55 @@ class IRacingMonitor:
             print(f"[Monitor] Telem sample error: {e}")
 
     def _telem_loop(self):
-        """Background thread: flushes the buffer to the server every BATCH_SIZE samples."""
+        """Background thread: collects samples at TELEM_HZ and flushes every TELEM_BATCH_SIZE samples."""
         import api_client
+        interval = 1.0 / TELEM_HZ
         while self._running:
-            time.sleep(1.0 / TELEM_HZ)
+            start = time.monotonic()
+
+            # Collect a sample at 30Hz if iRacing is connected
+            if self._connected:
+                try:
+                    self.ir.freeze_var_buffer_latest()
+                    self._collect_telem_sample()
+                except Exception:
+                    pass
+
             with self._telem_lock:
                 if len(self._telem_buf) >= TELEM_BATCH_SIZE:
                     batch = self._telem_buf[:TELEM_BATCH_SIZE]
                     self._telem_buf = self._telem_buf[TELEM_BATCH_SIZE:]
                 else:
+                    elapsed = time.monotonic() - start
+                    time.sleep(max(0, interval - elapsed))
                     continue
 
-            # Determine current lap from last sample
+            # Determine current lap, track, and car from shared memory
             lap = self.ir["Lap"] if self._connected else None
-            threading.Thread(
-                target=api_client.post_telemetry,
-                args=(lap, batch),
-                daemon=True,
-            ).start()
+            track, car = None, None
+            try:
+                weekend = self.ir["WeekendInfo"] or {}
+                track = weekend.get("TrackDisplayName") or weekend.get("TrackName")
+                player_idx = self.ir["PlayerCarIdx"]
+                drivers = (self.ir["DriverInfo"] or {}).get("Drivers", [])
+                us = next((d for d in drivers if d.get("CarIdx") == player_idx), None)
+                if us:
+                    car = us.get("CarScreenName") or us.get("CarPath")
+            except Exception:
+                pass
+            # Detect track change → close previous session so a new one is created
+            if track and track != self._last_track and self._last_track is not None:
+                print(f"[Monitor] Track changed ({self._last_track} → {track}), closing previous session")
+                self._close_live_session()
+            self._last_track = track
+
+            # Send batch and capture the server-assigned session ID
+            result = api_client.post_telemetry(lap, batch, track, car)
+            if result and result.get("session_id"):
+                self._live_session_id = result["session_id"]
+
+            elapsed = time.monotonic() - start
+            time.sleep(max(0, interval - elapsed))
 
     def _check_driver(self):
         try:

@@ -70,11 +70,11 @@ def register() -> dict | None:
     return None
 
 
-def post_telemetry(lap: int | None, samples: list) -> bool:
-    """Post a compressed telemetry batch to the server."""
+def post_telemetry(lap: int | None, samples: list, track: str | None = None, car: str | None = None) -> dict | None:
+    """Post a compressed telemetry batch to the server. Returns response JSON or None on failure."""
     import gzip, json as _json
     try:
-        payload = _json.dumps({"lap": lap, "samples": samples}).encode("utf-8")
+        payload = _json.dumps({"lap": lap, "samples": samples, "track": track, "car": car}).encode("utf-8")
         compressed = gzip.compress(payload)
         r = requests.post(
             f"{get_server_url()}/api/iracing/telemetry",
@@ -82,9 +82,26 @@ def post_telemetry(lap: int | None, samples: list) -> bool:
             headers={**_get_headers(), "Content-Encoding": "gzip", "Content-Type": "application/json"},
             timeout=5,
         )
-        return r.status_code == 200
+        if r.status_code == 200:
+            return r.json()
+        return None
     except Exception as e:
         print(f"[API] Failed to send telemetry: {e}")
+        return None
+
+
+def end_session(session_id: int) -> bool:
+    """Signal the server that the live session has ended. Returns True on success."""
+    try:
+        r = requests.post(
+            f"{get_server_url()}/api/telemetry/live/session/end",
+            json={"session_id": session_id},
+            headers=_get_headers(),
+            timeout=10,
+        )
+        return r.status_code == 200
+    except Exception as e:
+        print(f"[API] Failed to end session {session_id}: {e}")
         return False
 
 

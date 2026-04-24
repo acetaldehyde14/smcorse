@@ -1,9 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { telemetry as telApi } from '@/lib/api';
 import type { AllLap } from '@/lib/types';
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? '';
 
 function fmtLapTime(secs: number | null | undefined): string {
   if (!secs || secs <= 0) return '—';
@@ -16,17 +18,64 @@ function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-export default function LapsPage() {
-  const [laps, setLaps]       = useState<AllLap[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter]   = useState('');
+type UploadState = 'idle' | 'uploading' | 'done' | 'error';
 
-  useEffect(() => {
-    telApi.allLaps()
-      .then(setLaps)
-      .catch(console.error)
+export default function LapsPage() {
+  const [laps, setLaps]           = useState<AllLap[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [filter, setFilter]       = useState('');
+  const [uploadState, setUploadState] = useState<UploadState>('idle');
+  const [uploadMsg, setUploadMsg] = useState('');
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  function loadLaps() {
+    return telApi.allLaps()
+      .then(data => { setLaps(data); })
+      .catch(() => { /* keep existing laps visible on transient errors */ })
       .finally(() => setLoading(false));
-  }, []);
+  }
+
+  useEffect(() => { loadLaps(); }, []);
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';           // reset so same file can be re-selected
+    if (!file) return;
+
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    if (!['ibt', 'blap', 'olap'].includes(ext ?? '')) {
+      setUploadState('error');
+      setUploadMsg('Only .ibt, .blap and .olap files are supported');
+      return;
+    }
+
+    setUploadState('uploading');
+    setUploadMsg(`Uploading ${file.name}…`);
+
+    try {
+      const form = new FormData();
+      form.append('telemetry', file);
+      const res = await fetch(`${API_BASE}/api/telemetry/upload`, {
+        method: 'POST',
+        body: form,
+        credentials: 'include',
+      });
+      let json: any = {};
+      try { json = await res.json(); } catch { /* non-JSON response */ }
+      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+
+      const lapCount = json.session?.lap_count ?? json.lap_count ?? json.laps?.length ?? '?';
+      setUploadState('done');
+      setUploadMsg(`Uploaded — ${lapCount} lap${lapCount === 1 ? '' : 's'} added`);
+      setLoading(true);
+      loadLaps();
+      setTimeout(() => setUploadState('idle'), 4000);
+    } catch (err: any) {
+      setUploadState('error');
+      setUploadMsg(err.message || 'Upload failed');
+      setTimeout(() => setUploadState('idle'), 5000);
+    }
+  }
 
   const filtered = laps.filter(l => {
     if (!filter) return true;
@@ -37,12 +86,64 @@ export default function LapsPage() {
     );
   });
 
+  const uploadBtnClass =
+    uploadState === 'uploading' ? 'opacity-60 cursor-not-allowed' :
+    uploadState === 'done'      ? 'bg-green-600 border-green-600' :
+    uploadState === 'error'     ? 'bg-red-600 border-red-600'     :
+    'hover:bg-primary/20';
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="font-heading font-bold text-2xl text-white">Lap Library</h1>
           <p className="text-dark-muted text-sm">All recorded laps — click to see traces and features</p>
+        </div>
+
+        <div className="flex items-center gap-3">
+        {/* Analysis tool link */}
+        <a
+          href="/lap-analysis.html"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2 px-4 py-2 rounded-lg border border-dark-border text-sm font-semibold text-dark-muted hover:text-white hover:border-accent transition-colors font-body"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          </svg>
+          Analysis Tool
+        </a>
+
+        {/* Upload button */}
+        <div className="flex flex-col items-end gap-1">
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".ibt,.blap,.olap"
+            className="hidden"
+            onChange={handleFile}
+          />
+          <button
+            onClick={() => fileRef.current?.click()}
+            disabled={uploadState === 'uploading'}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg border border-primary text-sm font-semibold text-white transition-colors font-body ${uploadBtnClass}`}
+          >
+            {uploadState === 'uploading' ? (
+              <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            ) : (
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              </svg>
+            )}
+            {uploadState === 'uploading' ? 'Uploading…' : 'Upload Telemetry'}
+          </button>
+          {uploadMsg && (
+            <p className={`text-xs ${uploadState === 'error' ? 'text-red-400' : uploadState === 'done' ? 'text-green-400' : 'text-dark-muted'}`}>
+              {uploadMsg}
+            </p>
+          )}
+          <p className="text-dark-muted text-xs">.ibt · .blap · .olap</p>
+        </div>
         </div>
       </div>
 
@@ -66,12 +167,11 @@ export default function LapsPage() {
             {filter ? 'No matching laps' : 'No laps recorded yet'}
           </p>
           {!filter && (
-            <p className="text-sm">Upload a telemetry file or run a live session to populate this library</p>
+            <p className="text-sm">Upload a .ibt, .blap or .olap file using the button above</p>
           )}
         </div>
       ) : (
         <div className="bg-dark-card border border-dark-border rounded-xl overflow-hidden">
-          {/* Table header */}
           <div className="grid grid-cols-[3fr_3fr_1fr_2fr_2fr_auto] gap-x-4 px-4 py-2 border-b border-dark-border text-xs text-dark-muted uppercase tracking-wider font-body">
             <span>Track</span>
             <span>Car</span>

@@ -253,12 +253,12 @@ export default function LiveSessionPage() {
           {/* Current values */}
           <Card header="Latest">
             <div className="grid grid-cols-3 gap-2">
-              <StatCard label="Speed"    value={latest?.speed_kph != null ? Math.round(latest.speed_kph).toString() : '—'} unit="kph" color="text-[#00aaff]" large />
+              <StatCard label="Speed"    value={latest?.speed_kph != null ? `${Math.round(latest.speed_kph)} kph` : '—'} color="text-[#00aaff]" large />
               <StatCard label="Gear"     value={gearLabel(latest?.gear)} color="text-yellow-400" large />
               <StatCard label="RPM"      value={latest?.rpm != null ? `${Math.round(latest.rpm / 100) / 10}k` : '—'} />
               <StatCard label="Throttle" value={latest?.throttle != null ? `${Math.round(latest.throttle * 100)}%` : '—'} color="text-green-400" />
               <StatCard label="Brake"    value={latest?.brake != null ? `${Math.round(latest.brake * 100)}%` : '—'} color="text-red-400" />
-              <StatCard label="Session"  value={fmtSessionTime(summary?.latest_session_time)} />
+              <StatCard label="Session"  value={fmtSessionTime(summary?.latest_session_time ?? null)} />
             </div>
           </Card>
 

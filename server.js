@@ -7,6 +7,7 @@ const path = require('path');
 const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
+const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const app = express();
@@ -25,6 +26,7 @@ const teamRoutes = require('./src/routes/team');
 const teamsRoutes = require('./src/routes/teams');
 const racesRoutes = require('./src/routes/races');
 const iracingRoutes = require('./src/routes/iracing');
+const coachingRoutes = require('./src/routes/coaching');
 const { handleUploadError } = require('./src/middleware/upload');
 const { authenticateToken } = require('./src/middleware/auth');
 const { initTelegram, initDiscord, shutdownBots, startStintAlerts, stopStintAlerts } = require('./src/services/notifications');
@@ -54,6 +56,13 @@ app.use(session({
     maxAge: 24 * 60 * 60 * 1000 // 24 hours
   }
 }));
+
+// Rate limiters
+const telemLimiter = rateLimit({ windowMs: 60_000, max: 1200, standardHeaders: true, legacyHeaders: false });
+const apiLimiter   = rateLimit({ windowMs: 60_000, max: 300,  standardHeaders: true, legacyHeaders: false });
+app.use('/api/telemetry/live', telemLimiter);
+app.use('/api/iracing/telemetry', telemLimiter);
+app.use('/api/', apiLimiter);
 
 // Request logging
 app.use((req, res, next) => {
@@ -88,6 +97,14 @@ app.get('/dashboard', requireAuth, (req, res) => {
 
 app.get('/settings', requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'settings.html'));
+});
+
+app.get('/laps', requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'lap-analysis.html'));
+});
+
+app.get('/laps.html', requireAuth, (req, res) => {
+  res.redirect('/laps');
 });
 
 app.post('/api/signup', async (req, res) => {
@@ -259,6 +276,7 @@ app.use('/api/telemetry', attachUserId);
 app.use('/api/analysis', attachUserId);
 app.use('/api/library', attachUserId);
 app.use('/api/assistant', attachUserId);
+app.use('/api/coaching', attachUserId);
 
 // Mount routes
 app.use('/api/telemetry', telemetryRoutes);
@@ -269,6 +287,7 @@ app.use('/api/team', teamRoutes);
 app.use('/api/teams', teamsRoutes);
 app.use('/api/races', racesRoutes);
 app.use('/api/iracing', iracingRoutes);
+app.use('/api/coaching', coachingRoutes);
 
 // Serve uploaded files (protected)
 app.use('/uploads', requireAuth, express.static(path.join(__dirname, 'uploads')));

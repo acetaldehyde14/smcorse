@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lap Analysis - SM CORSE</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #0066cc;
+            --primary-dark: #004d99;
+            --accent: #00aaff;
+            --success: #28a745;
+            --danger: #dc3545;
+            --warning: #ffc107;
+            --dark: #0a0f1c;
+            --surface: #f8f9fa;
+            --text: #2c3e50;
+            --light: #ffffff;
+            --border: #e0e6ed;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            background: var(--surface);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: white;
+            margin: -2rem -2rem 3rem -2rem;
+            padding: 1.5rem 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            border-bottom: 2px solid var(--border);
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            cursor: pointer;
+        }
+
+        .logo-img { height: 50px; width: auto; }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 1.2rem;
+        }
+
+        .back-btn {
+            padding: 0.6rem 1.4rem;
+            border: 2px solid var(--primary);
+            background: transparent;
+            color: var(--primary);
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 600;
+            font-size: 0.85rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-radius: 4px;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.2s ease;
+        }
+
+        .back-btn:hover { background: var(--primary); color: white; }
+
+        .logout-btn {
+            padding: 0.6rem 1.4rem;
+            border: 2px solid var(--border);
+            background: transparent;
+            color: var(--text);
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 600;
+            font-size: 0.85rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+
+        .logout-btn:hover { border-color: var(--danger); color: var(--danger); }
+
+        /* Page header */
+        .page-header {
+            margin-bottom: 2rem;
+        }
+
+        .page-header h1 {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 2.2rem;
+            color: var(--primary);
+            font-weight: 800;
+            margin-bottom: 0.3rem;
+        }
+
+        .page-header p {
+            font-size: 1.1rem;
+            color: var(--text);
+            opacity: 0.75;
+        }
+
+        /* Filter card */
+        .card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            border-left: 4px solid var(--primary);
+        }
+
+        .filters {
+            display: flex;
+            gap: 0.8rem;
+            flex-wrap: wrap;
+            align-items: flex-end;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+            flex: 1;
+            min-width: 130px;
+        }
+
+        .filter-group label {
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 600;
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text);
+            opacity: 0.8;
+        }
+
+        .filter-group input,
+        .filter-group select {
+            padding: 0.55rem 0.7rem;
+            border: 2px solid var(--border);
+            border-radius: 4px;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1rem;
+            color: var(--text);
+            background: white;
+            transition: border-color 0.2s;
+        }
+
+        .filter-group input:focus,
+        .filter-group select:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .filter-actions {
+            display: flex;
+            gap: 0.5rem;
+            align-items: flex-end;
+            flex-shrink: 0;
+        }
+
+        .btn-primary {
+            padding: 0.6rem 1.4rem;
+            background: var(--primary);
+            border: none;
+            color: white;
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 600;
+            font-size: 0.85rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-radius: 4px;
+            transition: background 0.2s;
+            white-space: nowrap;
+        }
+
+        .btn-primary:hover { background: var(--primary-dark); }
+
+        /* Status bar */
+        .status {
+            padding: 0.6rem 1rem;
+            border-radius: 4px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            margin-top: 1rem;
+        }
+
+        .status.info    { background: #e3f2fd; color: #1565c0; }
+        .status.success { background: #e8f5e9; color: #2e7d32; }
+        .status.error   { background: #ffebee; color: #c62828; }
+
+        /* Table */
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.95rem;
+        }
+
+        thead th {
+            background: var(--primary);
+            color: white;
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 600;
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 0.75rem 0.8rem;
+            text-align: left;
+            white-space: nowrap;
+            position: sticky;
+            top: 0;
+        }
+
+        tbody tr {
+            border-bottom: 1px solid var(--border);
+            transition: background 0.15s;
+        }
+
+        tbody tr:hover { background: #f0f5ff; }
+
+        tbody td {
+            padding: 0.65rem 0.8rem;
+            vertical-align: middle;
+        }
+
+        .lap-time {
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 700;
+            color: var(--primary);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.15rem 0.5rem;
+            border-radius: 3px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            font-family: 'Montserrat', sans-serif;
+        }
+
+        .badge-valid   { background: #e8f5e9; color: #2e7d32; }
+        .badge-invalid { background: #ffebee; color: #c62828; }
+
+        /* Action buttons */
+        .actions { white-space: nowrap; display: flex; gap: 0.35rem; }
+
+        .btn-sm {
+            padding: 0.3rem 0.65rem;
+            border: none;
+            border-radius: 3px;
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 600;
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            cursor: pointer;
+            transition: all 0.15s;
+            white-space: nowrap;
+        }
+
+        .btn-view      { background: #e3f2fd; color: #1565c0; }
+        .btn-view:hover { background: #1565c0; color: white; }
+
+        .btn-ref       { background: #e8f5e9; color: #2e7d32; }
+        .btn-ref:hover  { background: #2e7d32; color: white; }
+
+        .btn-compare   { background: #fff3e0; color: #e65100; }
+        .btn-compare:hover { background: #e65100; color: white; }
+
+        /* Empty state */
+        #emptyState {
+            text-align: center;
+            padding: 3rem 2rem;
+            color: var(--text);
+            opacity: 0.6;
+        }
+
+        #emptyState h3 {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 1.3rem;
+            margin-bottom: 0.5rem;
+        }
+
+        @media (max-width: 900px) {
+            .filters { flex-direction: column; }
+            .filter-group { min-width: 100%; }
+            .filter-actions { width: 100%; }
+            .btn-primary { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <div class="logo-container" onclick="window.location.href='/dashboard'">
+            <img src="/img/sm_corse_only_blue.png" alt="SM CORSE" class="logo-img">
+        </div>
+        <div class="header-right">
+            <a href="/dashboard" class="back-btn">Dashboard</a>
+            <button class="logout-btn" onclick="logout()">Logout</button>
+        </div>
+    </header>
+
+    <main>
+        <div class="page-header">
+            <h1>Lap Analysis</h1>
+            <p>Review fastest laps, open telemetry detail, and set a reference lap for coaching.</p>
+        </div>
+
+        <div class="card">
+            <form id="filterForm" class="filters">
+                <div class="filter-group">
+                    <label for="trackFilter">Track ID</label>
+                    <input id="trackFilter" type="text" placeholder="e.g. spa">
+                </div>
+                <div class="filter-group">
+                    <label for="carFilter">Car ID</label>
+                    <input id="carFilter" type="text" placeholder="e.g. porsche992rgt3">
+                </div>
+                <div class="filter-group">
+                    <label for="sessionFilter">Session ID</label>
+                    <input id="sessionFilter" type="text" placeholder="Session ID">
+                </div>
+                <div class="filter-group" style="max-width:130px;">
+                    <label for="validFilter">Validity</label>
+                    <select id="validFilter">
+                        <option value="">All laps</option>
+                        <option value="true">Valid only</option>
+                        <option value="false">Invalid only</option>
+                    </select>
+                </div>
+                <div class="filter-group" style="max-width:100px;">
+                    <label for="limitFilter">Limit</label>
+                    <select id="limitFilter">
+                        <option value="50">50</option>
+                        <option value="100" selected>100</option>
+                        <option value="250">250</option>
+                    </select>
+                </div>
+                <div class="filter-actions">
+                    <button id="refreshButton" type="button" class="btn-primary">Refresh</button>
+                </div>
+            </form>
+            <div id="statusMessage" class="status info">Loading laps...</div>
+        </div>
+
+        <div class="card" style="padding:0; border-left-color: var(--accent);">
+            <div id="emptyState" style="display:none;">
+                <h3>No laps found</h3>
+                <p>Upload telemetry or adjust your filters.</p>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Lap ID</th>
+                            <th>Session</th>
+                            <th>Lap #</th>
+                            <th>Lap Time</th>
+                            <th>Valid</th>
+                            <th>Track</th>
+                            <th>Car</th>
+                            <th>Avg Speed</th>
+                            <th>Max Speed</th>
+                            <th>Peak Brake</th>
+                            <th>Full Throttle %</th>
+                            <th>Smoothness</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="lapsTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+    // ── Helpers ────────────────────────────────────────────────────────────────
+
+    function formatLapTime(seconds) {
+        if (seconds == null || Number.isNaN(Number(seconds))) return '—';
+        const total = Number(seconds);
+        const minutes = Math.floor(total / 60);
+        const rem = total - minutes * 60;
+        return `${minutes}:${rem.toFixed(3).padStart(6, '0')}`;
+    }
+
+    function formatNumber(value, digits = 1) {
+        if (value == null || Number.isNaN(Number(value))) return '—';
+        return Number(value).toFixed(digits);
+    }
+
+    function escapeHtml(value) {
+        return String(value)
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#039;');
+    }
+
+    function formatDate(value) {
+        if (!value) return '—';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return value;
+        return date.toLocaleString();
+    }
+
+    function setStatus(message, type = 'info') {
+        const el = document.getElementById('statusMessage');
+        el.textContent = message;
+        el.className = `status ${type}`;
+    }
+
+    // ── Filters ────────────────────────────────────────────────────────────────
+
+    function getFilters() {
+        return {
+            track_id:   document.getElementById('trackFilter')?.value?.trim()   || '',
+            car_id:     document.getElementById('carFilter')?.value?.trim()     || '',
+            session_id: document.getElementById('sessionFilter')?.value?.trim() || '',
+            valid:      document.getElementById('validFilter')?.value           || '',
+            limit:      document.getElementById('limitFilter')?.value           || '100',
+        };
+    }
+
+    // ── Data loading ───────────────────────────────────────────────────────────
+
+    async function loadLaps() {
+        const filters = getFilters();
+        const params  = new URLSearchParams();
+        Object.entries(filters).forEach(([k, v]) => { if (v !== '') params.set(k, v); });
+
+        const res = await fetch(`/api/analysis/laps?${params.toString()}`);
+        if (res.status === 401) { window.location.href = '/'; return []; }
+        if (!res.ok) throw new Error(`Failed to load laps: ${res.status}`);
+        const data = await res.json();
+        return data.laps || [];
+    }
+
+    // ── Render ─────────────────────────────────────────────────────────────────
+
+    function renderLaps(laps) {
+        const tbody = document.getElementById('lapsTableBody');
+        const empty = document.getElementById('emptyState');
+        tbody.innerHTML = '';
+
+        if (!laps || laps.length === 0) {
+            empty.style.display = 'block';
+            return;
+        }
+        empty.style.display = 'none';
+
+        for (const lap of laps) {
+            const tr  = document.createElement('tr');
+            const lapId = lap.lap_id ?? lap.id;
+            const isValid = lap.is_valid !== false;
+
+            tr.innerHTML = `
+                <td>${lapId ?? '—'}</td>
+                <td>${lap.session_id ?? '—'}</td>
+                <td>${lap.lap_number ?? '—'}</td>
+                <td class="lap-time">${formatLapTime(lap.lap_time_s ?? lap.lap_time)}</td>
+                <td><span class="badge ${isValid ? 'badge-valid' : 'badge-invalid'}">${isValid ? 'Yes' : 'No'}</span></td>
+                <td>${escapeHtml(lap.track_name || lap.track_id || '—')}</td>
+                <td>${escapeHtml(lap.car_name   || lap.car_id   || '—')}</td>
+                <td>${formatNumber(lap.avg_speed_kph,      1)}</td>
+                <td>${formatNumber(lap.max_speed_kph,      1)}</td>
+                <td>${formatNumber(lap.brake_peak,         2)}</td>
+                <td>${formatNumber(lap.throttle_full_pct,  1)}</td>
+                <td>${formatNumber(lap.smoothness_score,   2)}</td>
+                <td>${formatDate(lap.created_at)}</td>
+                <td class="actions">
+                    <button class="btn-sm btn-view"    onclick="viewTelemetry(${JSON.stringify(lapId)})">Telemetry</button>
+                    <button class="btn-sm btn-ref"     onclick="setReferenceLap(${JSON.stringify(lapId)})">Set Ref</button>
+                    <button class="btn-sm btn-compare" onclick="compareLap(${JSON.stringify(lapId)})">Compare</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        }
+    }
+
+    // ── Actions ────────────────────────────────────────────────────────────────
+
+    function viewTelemetry(lapId) {
+        if (!lapId) return;
+        window.location.href = `/lap-telemetry.html?lap_id=${encodeURIComponent(lapId)}`;
+    }
+
+    async function setReferenceLap(lapId) {
+        if (!lapId) return;
+        setStatus('Setting reference lap…', 'info');
+
+        try {
+            const res = await fetch(`/api/coaching/reference/${encodeURIComponent(lapId)}/activate`, {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body:    '{}',
+            });
+
+            if (res.status === 404) throw new Error('Reference lap API is not available yet.');
+            if (!res.ok) {
+                const body = await res.json().catch(() => ({}));
+                throw new Error(body.error || `Failed to set reference lap (${res.status})`);
+            }
+
+            await res.json().catch(() => ({}));
+            setStatus(`Reference lap set: lap ${lapId}`, 'success');
+        } catch (err) {
+            setStatus(err.message || 'Failed to set reference lap', 'error');
+        }
+    }
+
+    function compareLap(lapId) {
+        // TODO: wire up when compare route is available
+        setStatus('Lap compare is not implemented yet.', 'info');
+    }
+
+    // ── Refresh ────────────────────────────────────────────────────────────────
+
+    async function refreshLaps() {
+        setStatus('Loading laps…', 'info');
+        try {
+            const laps = await loadLaps();
+            renderLaps(laps);
+            setStatus(`Loaded ${laps.length} lap${laps.length !== 1 ? 's' : ''}`, 'success');
+        } catch (err) {
+            renderLaps([]);
+            setStatus(err.message || 'Failed to load laps', 'error');
+        }
+    }
+
+    // ── Auth ───────────────────────────────────────────────────────────────────
+
+    async function logout() {
+        await fetch('/api/logout', { method: 'POST' }).catch(() => {});
+        window.location.href = '/';
+    }
+
+    // ── Init ───────────────────────────────────────────────────────────────────
+
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('refreshButton')?.addEventListener('click', refreshLaps);
+        document.getElementById('filterForm')?.addEventListener('submit', (e) => {
+            e.preventDefault();
+            refreshLaps();
+        });
+        refreshLaps();
+    });
+</script>
+</body>
+</html>

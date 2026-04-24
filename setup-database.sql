@@ -1,3 +1,22 @@
+-- =============================================================================
+-- DEPRECATED: setup-database.sql
+-- =============================================================================
+-- This file is superseded by migrations/001_base_dimensions.sql through
+-- migrations/009_coaching_tables.sql. Do not use for new installs.
+--
+-- Canonical setup order:
+--   1. psql -U postgres -c "CREATE DATABASE iracing_coach;"
+--   2. psql -U postgres -d iracing_coach -f iracing-coach/database/schema.sql
+--   3. npm run db:migrate   (applies migrations 001-009)
+--
+-- This file is kept for git history only. Running it on a database that already
+-- has the numbered migrations applied will produce duplicate-table errors.
+-- Tables it defined are now covered by:
+--   - race_events, stint_planner_sessions, races extras → migration 002
+--   - live_telemetry → migration 003
+--   - telemetry_frames, lap_features, corner_segments, lap_segment_features → migration 004
+-- =============================================================================
+--
 -- Alternative setup script if batch file doesn't work
 -- Open pgAdmin or psql and run these commands manually
 

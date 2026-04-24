@@ -18,9 +18,18 @@ npm run migrate    # Migrate users from SQLite to PostgreSQL (one-time)
 
 The server runs on port 3000 by default (configurable via PORT environment variable). Accessible on local network at `http://<LAN_IP>:3000`.
 
-**Database Setup:**
+**Database Setup (canonical — use this for new setups):**
 ```bash
-setup-database.bat  # Create PostgreSQL database and run schema
+psql -U postgres -c "CREATE DATABASE iracing_coach;"
+psql -U postgres -d iracing_coach -f iracing-coach/database/schema.sql
+psql -U postgres -d iracing_coach -f scripts/migrate-enduro.sql
+npm run db:migrate           # Apply all numbered migrations (001–008)
+npm run db:migrate:backfill  # Populate dimension tables from existing data (existing DBs only)
+```
+
+**Legacy setup (deprecated, kept for reference):**
+```bash
+setup-database.bat  # Old method — use canonical chain above instead
 ```
 
 **Nginx:**
@@ -57,13 +66,15 @@ All backend logic is in `server.js`. Additional modules in `src/`:
 
 ### Database - PostgreSQL
 - **PostgreSQL** (not SQLite anymore) via `pg` connection pool
-- Main tables:
-  - `users` - Authentication and user profiles
-  - `sessions` - Practice sessions by track/car
-  - `laps` - Individual lap data with telemetry file paths
-  - `reference_laps` - Coach/community reference laps
-  - `coaching_sessions` - AI coaching history
-  - `tracks`, `user_progress`, `user_preferences` - Supporting data
+- Migrations live in `migrations/` (numbered 001–008). Apply with `npm run db:migrate`.
+- Three architectural layers — see `docs/database-architecture.md` for full detail:
+  1. **OLTP/Operational**: `users`, `sessions`, `laps`, `races`, `race_state`, `teams`, `team_members`, etc.
+  2. **Raw ingest buffer**: `live_telemetry` (14-day retention; race telemetry only)
+  3. **Analytics/warehouse**: `telemetry_frames` (canonical replay), `fact_lap`, `fact_lap_segment`, mart views
+- **Canonical telemetry source**: `telemetry_frames` — always query this for replay, coaching, and AI analysis. Do NOT use `live_telemetry` for analytics.
+- Serving marts (views): `mart_live_race_state`, `mart_driver_consistency`, `mart_corner_time_loss`, `mart_lap_comparison()` function
+- Dimension tables: `tracks`, `track_configs`, `cars`, `segments` (normalized; populated by backfill scripts)
+- Backward-compat views: `lap_features_v`, `lap_segment_features_v`, `live_telemetry_raw`, `fact_iracing_event`
 - Uses parameterized queries ($1, $2) for SQL injection safety
 - Helper functions: `query()` for simple queries, `transaction()` for multi-step operations
 
@@ -114,7 +125,8 @@ All require authentication via session middleware.
 ### Assistant Routes (from src/routes/assistant.js)
 - `POST /api/assistant/chat` - Chat with AI Race Engineer (iRacing + LMU expert)
 - `GET /api/assistant/search` - Web search via DuckDuckGo (no API key needed)
-- `GET /api/assistant/health` - Check Llama server availability
+- `GET /api/assistant/models` - List available AI models
+- `GET /api/assistant/health` - Check NVIDIA API availability
 
 ### Race Routes (from src/routes/races.js)
 - `GET /api/races` - List all races
@@ -186,9 +198,9 @@ Required in `.env`:
 - `DB_USER` - Database user (postgres)
 - `DB_PASSWORD` - Database password (REQUIRED)
 
-**Remote AI Server:**
-- `OLLAMA_HOST` - Remote Llama server URL (http://23.141.136.111:11434)
-- `OLLAMA_MODEL` - Model name (llama3.3:70b-instruct-q4_K_M)
+**NVIDIA AI API:**
+- `NVIDIA_API_KEY` - NVIDIA NIM API key (has hardcoded default; override in production)
+- `NVIDIA_MODEL` - Override default model key (`glm-5.1` or `minimax-m2`)
 
 **JWT (Desktop Client):**
 - `JWT_SECRET` - Secret for signing JWT tokens (REQUIRED for desktop client auth)
@@ -261,23 +273,33 @@ This is for **endurance racing** - multi-hour races (6h, 12h, 24h) requiring mul
 ## AI Integration
 
 ### AI Coaching (src/services/coaching.js + src/routes/analysis.js)
-Uses remote Llama server for lap comparison coaching.
+Uses NVIDIA NIM API via `src/config/llama.js` for lap comparison coaching.
 
 ### AI Assistant (src/routes/assistant.js)
-General-purpose race engineer chat with iRacing + LMU expertise. Includes DuckDuckGo web search for current information.
+General-purpose race engineer chat with iRacing + LMU expertise. Includes DuckDuckGo web search for current information. Supports model selection per request.
 
-**Remote Llama Server:**
-- Server: http://23.141.136.111:11434
-- Model: Llama 3.3 70B Instruct (quantized Q4_K_M)
-- Client code: `src/config/llama.js`
+**NVIDIA NIM API:**
+- Endpoint: `https://integrate.api.nvidia.com/v1`
+- Client code: `src/config/llama.js` (LlamaClient class, interface unchanged)
 
-**LlamaClient methods:**
-- `isAvailable()` - Check if remote server is accessible
-- `generate(prompt, options)` - Generate text from prompt
-- `chat(messages, options)` - Chat conversation format
-- `generateCoaching(lapAnalysis, referenceData, userContext)` - Specialized coaching prompt
+**Available models** (defined in MODELS registry in both assistant.js and llama.js):
+- `glm-5.1` → `z-ai/glm-5.1` — default, thinking enabled, temp 1.0
+- `minimax-m2` → `minimaxai/minimax-m2.7` — thinking enabled, temp 0.6, top_k 20
 
-Responses can take 10-30 seconds for complex analysis.
+**Selecting a model in chat requests:**
+```json
+{ "message": "...", "model": "minimax-m2" }
+```
+Model key or full model id both accepted. Unknown model falls back to default.
+
+**LlamaClient methods** (interface unchanged for coaching callers):
+- `isAvailable()` - Probe NVIDIA endpoint
+- `generate(prompt, options)` - Single-turn; `options.model` selects model
+- `chat(messages, options)` - Multi-turn; `options.model` selects model
+- `generateCoaching(lapAnalysis, referenceData, userContext)` - Always uses GLM for best reasoning
+- `LlamaClient.availableModels()` - Static; returns model registry
+
+Responses can take 10-60 seconds for complex reasoning (thinking models show chain-of-thought).
 
 ## File Uploads
 

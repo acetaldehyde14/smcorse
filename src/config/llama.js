@@ -1,88 +1,101 @@
-const axios = require('axios');
+const OpenAI = require('openai');
 require('dotenv').config();
 
-const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://localhost:11434';
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.3:70b';
+const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY || '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';
 
+const _client = new OpenAI({
+  baseURL: 'https://integrate.api.nvidia.com/v1',
+  apiKey:  NVIDIA_API_KEY,
+  timeout: 120000,
+});
+
+// ── Model registry ────────────────────────────────────────────────────────────
+const MODELS = {
+  'glm-5.1': {
+    id:          'z-ai/glm-5.1',
+    label:       'GLM 5.1',
+    temperature: 1.0,
+    top_p:       0.95,
+    max_tokens:  4096,
+  },
+  'minimax-m2': {
+    id:          'minimaxai/minimax-m2.7',
+    label:       'MiniMax M2.7',
+    temperature: 1.0,
+    top_p:       0.95,
+    max_tokens:  4096,
+  },
+};
+
+const DEFAULT_MODEL_KEY = 'minimax-m2';
+
+function stripThinking(text) {
+  return text.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+}
+
+function resolveModel(requested) {
+  if (!requested) return MODELS[DEFAULT_MODEL_KEY];
+  if (MODELS[requested]) return MODELS[requested];
+  const byId = Object.values(MODELS).find(m => m.id === requested);
+  return byId ?? MODELS[DEFAULT_MODEL_KEY];
+}
+
+// ── LlamaClient ───────────────────────────────────────────────────────────────
 class LlamaClient {
   constructor() {
-    this.host = OLLAMA_HOST;
-    this.model = OLLAMA_MODEL;
-    this.timeout = 120000; // 2 minutes for complex analysis
+    this.model = MODELS[DEFAULT_MODEL_KEY].id;
+  }
+
+  static availableModels() {
+    return { models: MODELS, default: DEFAULT_MODEL_KEY };
   }
 
   async isAvailable() {
     try {
-      const response = await axios.get(`${this.host}/api/tags`, {
-        timeout: 5000
+      const modelCfg = MODELS[DEFAULT_MODEL_KEY];
+      await _client.chat.completions.create({
+        model:      modelCfg.id,
+        messages:   [{ role: 'user', content: 'ping' }],
+        max_tokens: 1,
       });
-      return response.data.models.some(m => m.name === this.model);
-    } catch (error) {
-      console.error('Ollama not available:', error.message);
+      return true;
+    } catch (err) {
+      console.error('NVIDIA API not available:', err.message);
       return false;
     }
   }
 
   async generate(prompt, options = {}) {
-    try {
-      const response = await axios.post(
-        `${this.host}/api/generate`,
-        {
-          model: this.model,
-          prompt: prompt,
-          stream: false,
-          options: {
-            temperature: options.temperature || 0.7,
-            top_p: options.top_p || 0.9,
-            num_predict: options.max_tokens || 2000,
-          }
-        },
-        {
-          timeout: this.timeout
-        }
-      );
-
-      return response.data.response;
-    } catch (error) {
-      console.error('Llama generation error:', error.message);
-      throw new Error('Failed to generate coaching response');
-    }
+    const modelCfg = resolveModel(options.model);
+    const response = await _client.chat.completions.create({
+      model:       modelCfg.id,
+      messages:    [{ role: 'user', content: prompt }],
+      temperature: options.temperature ?? modelCfg.temperature,
+      top_p:       options.top_p       ?? modelCfg.top_p,
+      max_tokens:  options.max_tokens  ?? modelCfg.max_tokens,
+    });
+    return stripThinking(response.choices[0].message.content);
   }
 
   async chat(messages, options = {}) {
-    try {
-      const response = await axios.post(
-        `${this.host}/api/chat`,
-        {
-          model: this.model,
-          messages: messages,
-          stream: false,
-          options: {
-            temperature: options.temperature || 0.7,
-            top_p: options.top_p || 0.9,
-          }
-        },
-        {
-          timeout: this.timeout
-        }
-      );
-
-      return response.data.message.content;
-    } catch (error) {
-      console.error('Llama chat error:', error.message);
-      throw new Error('Failed to generate chat response');
-    }
+    const modelCfg = resolveModel(options.model);
+    const response = await _client.chat.completions.create({
+      model:       modelCfg.id,
+      messages,
+      temperature: options.temperature ?? modelCfg.temperature,
+      top_p:       options.top_p       ?? modelCfg.top_p,
+      max_tokens:  options.max_tokens  ?? modelCfg.max_tokens,
+    });
+    return stripThinking(response.choices[0].message.content);
   }
 
-  // Specific coaching prompt
   async generateCoaching(lapAnalysis, referenceData, userContext = {}) {
     const prompt = this.buildCoachingPrompt(lapAnalysis, referenceData, userContext);
-    return await this.generate(prompt, { temperature: 0.7, max_tokens: 2500 });
+    return await this.generate(prompt, { model: 'glm-5.1', temperature: 1.0, top_p: 0.95, max_tokens: 4096 });
   }
 
   buildCoachingPrompt(lapAnalysis, referenceData, userContext) {
     const { username = 'Driver', skill_level = 'Intermediate' } = userContext;
-    
     return `You are a professional sim racing coach analyzing iRacing telemetry data.
 
 DRIVER INFO:
@@ -122,14 +135,13 @@ Provide detailed, actionable coaching feedback. Include:
    - Throttle application (smoothness, timing)
    - Steering inputs (smoothness, aggression)
 
-4. **Practice Drill**: Create one specific drill for the next session (e.g., "Focus on Turn 3-5 complex, practice carrying 5 km/h more through Turn 4")
+4. **Practice Drill**: Create one specific drill for the next session
 
 5. **Realistic Goal**: What lap time should be achievable after addressing these issues?
 
-Keep the tone encouraging but direct. Be specific with numbers and reference points. Make it actionable.`;
+Keep the tone encouraging but direct. Be specific with numbers and reference points.`;
   }
 
-  // Track learning assistant
   async generateTrackLearning(trackInfo, sessionData, lapHistory) {
     const prompt = `You are helping a driver learn ${trackInfo.track_name} for the first time.
 
@@ -139,7 +151,7 @@ Typical times for this skill level: ${trackInfo.expected_lap_range}
 
 CONSISTENCY BY SECTOR:
 - Sector 1: ±${sessionData.sector1_variance}s
-- Sector 2: ±${sessionData.sector2_variance}s  
+- Sector 2: ±${sessionData.sector2_variance}s
 - Sector 3: ±${sessionData.sector3_variance}s
 
 LAP HISTORY:
@@ -150,12 +162,9 @@ Provide:
 2. Specific reference points to memorize for the most inconsistent area
 3. A realistic time target for the next 5 laps
 4. One key technique tip for the track`;
-
     return await this.generate(prompt);
   }
 }
 
-// Singleton instance
 const llamaClient = new LlamaClient();
-
 module.exports = llamaClient;

@@ -1,3 +1,19 @@
+-- =============================================================================
+-- DEPRECATED: src/db/migrate-telemetry.sql
+-- =============================================================================
+-- This file is superseded by migrations/002_operational_tables.sql and
+-- migrations/004_telemetry_fact_tables.sql. Do not use for new installs.
+--
+-- Tables it created are now covered by:
+--   sessions (base) → iracing-coach/database/schema.sql
+--   sessions extensions → migration 002
+--   laps (base) → iracing-coach/database/schema.sql
+--   telemetry_frames → migration 004
+--   lap_features → migration 004
+--
+-- Kept for git history only.
+-- =============================================================================
+
 -- Telemetry tables migration
 -- Run once against the iracing_coach database to enable live telemetry ingestion.
 

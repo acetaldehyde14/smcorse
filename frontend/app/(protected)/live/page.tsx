@@ -102,7 +102,7 @@ function Stat({ label, value, color = 'text-white', large = false }: {
 
 // ── Live telemetry view (shown once a session is active) ─────────
 
-function LiveView({ sessionId }: { sessionId: number }) {
+function LiveView({ sessionId, isLive }: { sessionId: number; isLive: boolean }) {
   const [summary, setSummary]     = useState<LiveSessionSummary | null>(null);
   const [buffer, setBuffer]       = useState<LiveFrame[]>([]);
   const [streaming, setStreaming] = useState(false);
@@ -177,12 +177,12 @@ function LiveView({ sessionId }: { sessionId: number }) {
             <p className="text-dark-muted text-sm">{summary.session.car_name}</p>
           )}
         </div>
-        <Badge variant={summary?.status === 'open' ? 'active' : 'inactive'}>
-          {summary?.status === 'open' ? 'LIVE' : 'Ended'}
-        </Badge>
+        {isLive
+          ? <Badge variant="active">LIVE</Badge>
+          : <Badge variant="info">Replay</Badge>}
         <div className={`flex items-center gap-1.5 text-xs ${streaming ? 'text-green-400' : 'text-dark-muted'}`}>
           <span className={`w-2 h-2 rounded-full ${streaming ? 'bg-green-400 animate-pulse' : 'bg-dark-muted'}`} />
-          {streaming ? 'Streaming' : 'Waiting for data…'}
+          {isLive ? (streaming ? 'Streaming' : 'Waiting for data…') : (streaming ? 'Loading frames…' : 'Done')}
         </div>
         <Link href={`/live/${sessionId}`} className="ml-auto text-xs text-[#0066cc] hover:underline">
           Full view →
@@ -223,7 +223,7 @@ function LiveView({ sessionId }: { sessionId: number }) {
               <Stat label="RPM"      value={l?.rpm != null ? `${(l.rpm / 1000).toFixed(1)}k` : '—'} />
               <Stat label="Throttle" value={l?.throttle != null ? `${Math.round(l.throttle * 100)}%` : '—'} color="text-green-400" />
               <Stat label="Brake"    value={l?.brake != null ? `${Math.round(l.brake * 100)}%` : '—'} color="text-red-400" />
-              <Stat label="Time"     value={fmtSessionTime(summary?.latest_session_time)} />
+              <Stat label="Time"     value={fmtSessionTime(summary?.latest_session_time ?? null)} />
             </div>
           </Card>
 
@@ -324,16 +324,20 @@ function NoSession() {
 
 export default function LivePage() {
   const [sessionId, setSessionId] = useState<number | null | undefined>(undefined);
-  // undefined = loading, null = no active session, number = found
+  const [isLive, setIsLive]       = useState(false);
+  // undefined = loading, null = nothing found, number = found
 
-  // Poll for an active session
+  // Poll for an active session — only update on successful responses,
+  // never set null on transient network errors to avoid flickering.
   useEffect(() => {
     const check = async () => {
       try {
-        const { session_id } = await telApi.liveActive();
-        setSessionId(session_id);
+        const res = await telApi.liveActive();
+        setSessionId(res.session_id ?? null);
+        setIsLive(!!(res as any).is_live);
       } catch {
-        setSessionId(null);
+        // Keep current session visible on transient errors
+        setSessionId(prev => prev === undefined ? null : prev);
       }
     };
     check();
@@ -356,8 +360,8 @@ export default function LivePage() {
       {sessionId === undefined && (
         <div className="text-dark-muted text-sm text-center py-16">Checking for active session…</div>
       )}
-      {sessionId === null && <NoSession />}
-      {sessionId != null && <LiveView key={sessionId} sessionId={sessionId} />}
+      {(sessionId === null || (sessionId !== undefined && !isLive)) && <NoSession />}
+      {sessionId != null && isLive && <LiveView key={sessionId} sessionId={sessionId} isLive={isLive} />}
     </div>
   );
 }

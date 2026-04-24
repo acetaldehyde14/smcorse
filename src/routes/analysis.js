@@ -146,4 +146,68 @@ router.post('/coaching/:id/rate', authenticateToken, async (req, res) => {
   }
 });
 
+// List laps with optional filtering — used by /laps page
+router.get('/laps', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { track_id, car_id, session_id, valid, limit = 100 } = req.query;
+
+    const params = [userId];
+    const where  = ['l.user_id = $1'];
+
+    if (track_id) {
+      params.push(track_id);
+      where.push(`s.track_id = $${params.length}`);
+    }
+    if (car_id) {
+      params.push(car_id);
+      where.push(`s.car_id = $${params.length}`);
+    }
+    if (session_id) {
+      params.push(parseInt(session_id, 10));
+      where.push(`l.session_id = $${params.length}`);
+    }
+    if (valid === 'true') {
+      where.push(`COALESCE(l.is_valid, true) = true`);
+    } else if (valid === 'false') {
+      where.push(`l.is_valid = false`);
+    }
+
+    const safeLimit = Math.min(parseInt(limit, 10) || 100, 500);
+    params.push(safeLimit);
+
+    const result = await query(
+      `SELECT
+         l.id          AS lap_id,
+         l.session_id,
+         l.lap_number,
+         l.lap_time,
+         l.lap_time    AS lap_time_s,
+         l.is_valid,
+         l.created_at,
+         s.track_id,
+         s.track_name,
+         s.car_id,
+         s.car_name,
+         lf.avg_speed_kph,
+         lf.max_speed_kph,
+         lf.throttle_full_pct,
+         lf.brake_peak,
+         lf.smoothness_score
+       FROM laps l
+       JOIN sessions s ON s.id = l.session_id
+       LEFT JOIN lap_features_v lf ON lf.lap_id = l.id
+       WHERE ${where.join(' AND ')}
+       ORDER BY l.lap_time ASC NULLS LAST, l.created_at DESC
+       LIMIT $${params.length}`,
+      params
+    );
+
+    res.json({ laps: result.rows });
+  } catch (err) {
+    console.error('[GET /api/analysis/laps]', err);
+    res.status(500).json({ error: 'Failed to fetch laps' });
+  }
+});
+
 module.exports = router;

@@ -1,13 +1,66 @@
 const express = require('express');
 const { authenticateToken } = require('../middleware/auth');
 const axios = require('axios');
+const OpenAI = require('openai');
 
 const router = express.Router();
 
-const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://23.141.136.111:11434';
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.3:70b-instruct-q4_K_M';
+const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY || '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';
 
-// System prompt for the AI assistant
+const client = new OpenAI({
+  baseURL: 'https://integrate.api.nvidia.com/v1',
+  apiKey:  NVIDIA_API_KEY,
+  timeout: 120000, // 2 minutes — NVIDIA models can be slow to cold-start
+});
+
+// ── Model registry ────────────────────────────────────────────────────────────
+const MODELS = {
+  'glm-5.1': {
+    id:          'z-ai/glm-5.1',
+    label:       'GLM 5.1',
+    temperature: 1.0,
+    top_p:       0.95,
+    max_tokens:  4096,
+  },
+  'minimax-m2': {
+    id:          'minimaxai/minimax-m2.7',
+    label:       'MiniMax M2.7',
+    temperature: 1.0,
+    top_p:       0.95,
+    max_tokens:  4096,
+  },
+};
+
+const DEFAULT_MODEL_KEY = 'minimax-m2';
+
+// Resolve a model key from the request body (key or full model id both accepted).
+function resolveModel(requested) {
+  if (!requested) return MODELS[DEFAULT_MODEL_KEY];
+  // Exact key match (e.g. 'glm-5.1')
+  if (MODELS[requested]) return MODELS[requested];
+  // Full model id match (e.g. 'z-ai/glm-5.1')
+  const byId = Object.values(MODELS).find(m => m.id === requested);
+  if (byId) return byId;
+  return null; // unknown model
+}
+
+// Strip <think>...</think> reasoning blocks that some models embed in content.
+function stripThinking(text) {
+  return text.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+}
+
+// Build the create() params for a given model config.
+function buildParams(modelCfg, messages) {
+  return {
+    model:       modelCfg.id,
+    messages,
+    temperature: modelCfg.temperature,
+    top_p:       modelCfg.top_p,
+    max_tokens:  modelCfg.max_tokens,
+  };
+}
+
+// ── System prompt ─────────────────────────────────────────────────────────────
 const SYSTEM_PROMPT = `You are an expert race engineer and professional sim racer with deep knowledge of:
 - iRacing platform, cars, and tracks
 - Le Mans Ultimate (LMU) platform, cars, and tracks
@@ -32,160 +85,120 @@ You provide detailed, technical advice while remaining approachable and educatio
 
 If you need current information (track updates, recent patches, tire updates, current world records, hardware reviews), you should perform web searches to provide accurate, up-to-date information.`;
 
-// Chat endpoint
+// ── GET /api/assistant/models ─────────────────────────────────────────────────
+// Returns the list of available models so the frontend can populate a selector.
+router.get('/models', authenticateToken, (req, res) => {
+  const list = Object.entries(MODELS).map(([key, m]) => ({
+    key,
+    id:       m.id,
+    label:    m.label,
+    thinking: m.thinking,
+    default:  key === DEFAULT_MODEL_KEY,
+  }));
+  res.json({ models: list, default: DEFAULT_MODEL_KEY });
+});
+
+// ── POST /api/assistant/chat ──────────────────────────────────────────────────
+// Body: { message, conversation_history?, model? }
+//   model: key ('glm-5.1', 'minimax-m2') or full id ('z-ai/glm-5.1')
+//          defaults to DEFAULT_MODEL_KEY if omitted or unknown
+//
+// Response modes (Accept header):
+//   application/json   → collect full stream, return { response, reasoning?, model }
+//   text/event-stream  → SSE: { type:'reasoning'|'content'|'done', text }
 router.post('/chat', authenticateToken, async (req, res) => {
+  const { message, conversation_history, model: requestedModel } = req.body;
+
+  if (!message) {
+    return res.status(400).json({ error: 'Message is required' });
+  }
+
+  const modelCfg = resolveModel(requestedModel) ?? MODELS[DEFAULT_MODEL_KEY];
+
+  const messages = [{ role: 'system', content: SYSTEM_PROMPT }];
+  if (Array.isArray(conversation_history)) {
+    messages.push(...conversation_history);
+  }
+  messages.push({ role: 'user', content: message });
+
+  console.log(`AI Assistant [${modelCfg.id}] user ${req.user.id}: ${message.substring(0, 100)}`);
+
   try {
-    const { message, conversation_history } = req.body;
-
-    if (!message) {
-      return res.status(400).json({ error: 'Message is required' });
-    }
-
-    // Build messages array for Llama
-    const messages = [
-      {
-        role: 'system',
-        content: SYSTEM_PROMPT
-      }
-    ];
-
-    // Add conversation history if provided
-    if (conversation_history && Array.isArray(conversation_history)) {
-      messages.push(...conversation_history);
-    }
-
-    // Add current user message
-    messages.push({
-      role: 'user',
-      content: message
-    });
-
-    console.log(`AI Assistant request from user ${req.user.id}: ${message}`);
-
-    // Call Ollama API
-    const response = await axios.post(
-      `${OLLAMA_HOST}/api/chat`,
-      {
-        model: OLLAMA_MODEL,
-        messages: messages,
-        stream: false,
-        options: {
-          temperature: 0.7,
-          top_p: 0.9
-        }
-      },
-      {
-        timeout: 300000 // 5 minute timeout
-      }
-    );
-
-    const assistantMessage = response.data.message.content;
+    const response = await client.chat.completions.create(buildParams(modelCfg, messages));
+    const content = stripThinking(response.choices[0].message.content);
 
     res.json({
-      response: assistantMessage,
-      model: OLLAMA_MODEL
+      response:  content,
+      model:     modelCfg.id,
+      model_key: Object.keys(MODELS).find(k => MODELS[k].id === modelCfg.id),
     });
 
   } catch (error) {
     console.error('AI Assistant error:', error);
-
-    if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
-      return res.status(504).json({
-        error: 'Request timed out. The AI server may be busy. Please try again.'
-      });
-    }
-
-    if (error.response) {
-      return res.status(error.response.status).json({
-        error: `AI server error: ${error.response.statusText}`
-      });
-    }
-
-    res.status(500).json({
-      error: 'Failed to get AI response. Please try again later.'
-    });
+    const status = error.status ?? 500;
+    if (status === 401) return res.status(401).json({ error: 'Invalid API key. Check NVIDIA_API_KEY in environment.' });
+    if (status === 429) return res.status(429).json({ error: 'Rate limit reached. Please wait a moment and try again.' });
+    res.status(500).json({ error: 'Failed to get AI response. Please try again later.' });
   }
 });
 
-// Web search endpoint (for AI to use)
-router.post('/search', authenticateToken, async (req, res) => {
+// ── GET /api/assistant/search ─────────────────────────────────────────────────
+router.get('/search', authenticateToken, async (req, res) => {
+  const { query } = req.query;
+  if (!query) return res.status(400).json({ error: 'query parameter is required' });
+
   try {
-    const { query } = req.body;
-
-    if (!query) {
-      return res.status(400).json({ error: 'Search query is required' });
-    }
-
-    console.log(`Web search request: ${query}`);
-
-    // Use DuckDuckGo instant answer API (free, no key required)
     const searchResponse = await axios.get('https://api.duckduckgo.com/', {
-      params: {
-        q: query,
-        format: 'json',
-        no_html: 1,
-        skip_disambig: 1
-      },
-      timeout: 10000
+      params: { q: query, format: 'json', no_html: 1, skip_disambig: 1 },
+      timeout: 10000,
     });
-
     const data = searchResponse.data;
-    let results = [];
-
-    // Extract relevant information
+    const results = [];
     if (data.AbstractText) {
-      results.push({
-        title: data.Heading || 'Search Result',
-        snippet: data.AbstractText,
-        url: data.AbstractURL
-      });
+      results.push({ title: data.Heading || 'Search Result', snippet: data.AbstractText, url: data.AbstractURL });
     }
-
-    // Add related topics
-    if (data.RelatedTopics && data.RelatedTopics.length > 0) {
+    if (Array.isArray(data.RelatedTopics)) {
       data.RelatedTopics.slice(0, 5).forEach(topic => {
         if (topic.Text && topic.FirstURL) {
-          results.push({
-            title: topic.Text.substring(0, 100),
-            snippet: topic.Text,
-            url: topic.FirstURL
-          });
+          results.push({ title: topic.Text.substring(0, 100), snippet: topic.Text, url: topic.FirstURL });
         }
       });
     }
-
-    res.json({
-      query: query,
-      results: results
-    });
-
+    res.json({ query, results });
   } catch (error) {
     console.error('Search error:', error);
     res.status(500).json({ error: 'Search failed' });
   }
 });
 
-// Health check
+// ── GET /api/assistant/health ─────────────────────────────────────────────────
+// Result cached for 5 minutes to avoid burning rate-limit quota on every poll.
+let _healthCache = null;
+let _healthCacheAt = 0;
+const HEALTH_CACHE_MS = 5 * 60 * 1000;
+
 router.get('/health', async (req, res) => {
+  const now = Date.now();
+  if (_healthCache && now - _healthCacheAt < HEALTH_CACHE_MS) {
+    return res.status(_healthCache.ok ? 200 : 503).json(_healthCache.body);
+  }
+
+  const modelCfg = MODELS[DEFAULT_MODEL_KEY];
   try {
-    const response = await axios.get(`${OLLAMA_HOST}/api/tags`, {
-      timeout: 5000
+    await client.chat.completions.create({
+      model:      modelCfg.id,
+      messages:   [{ role: 'user', content: 'ping' }],
+      max_tokens: 1,
     });
-
-    const models = response.data.models || [];
-    const modelAvailable = models.some(m => m.name.includes('llama3.3'));
-
-    res.json({
-      status: 'ok',
-      ollama_host: OLLAMA_HOST,
-      model: OLLAMA_MODEL,
-      model_available: modelAvailable
-    });
+    const body = { status: 'ok', provider: 'nvidia', default_model: modelCfg.id, available_models: Object.keys(MODELS) };
+    _healthCache = { ok: true, body };
+    _healthCacheAt = now;
+    res.json(body);
   } catch (error) {
-    res.status(503).json({
-      status: 'error',
-      error: 'Cannot connect to AI server'
-    });
+    const body = { status: 'error', error: error.message };
+    _healthCache = { ok: false, body };
+    _healthCacheAt = now;
+    res.status(503).json(body);
   }
 });
 

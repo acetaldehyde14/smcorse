@@ -5,6 +5,8 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { telemetry as telApi } from '@/lib/api';
 import type { LiveFrame, LapFeatures, LapChannels } from '@/lib/types';
+import { normalizeLapSamples, type TelemetryPoint } from '@/lib/telemetry';
+import LapTraceViewer from '@/components/telemetry/LapTraceViewer';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 
@@ -134,12 +136,13 @@ export default function LapDetailPage() {
   const lid = parseInt(lapId ?? '0');
 
   const [tab, setTab] = useState<Tab>('overview');
-  const [lapMeta, setLapMeta]   = useState<LapMeta | null>(null);
-  const [frames, setFrames]     = useState<LiveFrame[]>([]);
-  const [features, setFeatures] = useState<LapFeatures | null>(null);
-  const [channels, setChannels] = useState<LapChannels | null>(null);
-  const [loading, setLoading]   = useState(true);
-  const [error, setError]       = useState<string | null>(null);
+  const [lapMeta, setLapMeta]         = useState<LapMeta | null>(null);
+  const [frames, setFrames]           = useState<LiveFrame[]>([]);
+  const [normalizedPoints, setNormalized] = useState<TelemetryPoint[]>([]);
+  const [features, setFeatures]       = useState<LapFeatures | null>(null);
+  const [channels, setChannels]       = useState<LapChannels | null>(null);
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState<string | null>(null);
 
   // Canvas refs
   const cvSpeed = useRef<HTMLCanvasElement>(null);
@@ -161,7 +164,7 @@ export default function LapDetailPage() {
           // Normalise frames: may come from telemetry_frames or IBT fallback
           const raw = telResult.value.telemetry;
           if (Array.isArray(raw)) {
-            setFrames(raw.map((f: any) => ({
+            const liveFrames = raw.map((f: any) => ({
               session_time:  Number(f.session_time ?? f.time ?? 0),
               lap_number:    f.lap_number ?? f.lap ?? null,
               lap_dist_pct:  f.lap_dist_pct ?? f.distPct ?? null,
@@ -171,7 +174,9 @@ export default function LapDetailPage() {
               steering_deg:  f.steering_deg ?? (f.steering != null ? f.steering * (180 / Math.PI) : null),
               gear:          f.gear ?? null,
               rpm:           f.rpm ?? null,
-            })));
+            }));
+            setFrames(liveFrames);
+            setNormalized(normalizeLapSamples(raw));
           }
         } else {
           setError('Could not load telemetry for this lap');
@@ -341,37 +346,7 @@ export default function LapDetailPage() {
 
       {/* ── Traces tab ── */}
       {tab === 'traces' && (
-        <div className="space-y-4">
-          {frames.length === 0 ? (
-            <div className="text-dark-muted text-sm text-center py-16">
-              No frame data available for this lap.
-            </div>
-          ) : (
-            <>
-              <p className="text-dark-muted text-xs">
-                X axis: {xAxisLabel} · {frames.length} samples
-              </p>
-
-              <ChartPanel label="Speed (kph)" canvasRef={cvSpeed} height={120}>
-                <span className="text-xs text-[#00aaff] font-mono">
-                  {fmt(features?.max_speed_kph, 0)} kph max
-                </span>
-              </ChartPanel>
-
-              <ChartPanel label="Throttle (green) / Brake (red)" canvasRef={cvTB} height={100}>
-                <span className="text-xs text-dark-muted">
-                  {fmt(features?.throttle_full_pct, 1)}% full throttle
-                </span>
-              </ChartPanel>
-
-              <ChartPanel label="Steering (deg)" canvasRef={cvSteer} height={100}>
-                <span className="text-xs text-yellow-400">
-                  {fmt(features?.steering_variance != null ? Math.sqrt(features.steering_variance) : null, 1, '° σ')}
-                </span>
-              </ChartPanel>
-            </>
-          )}
-        </div>
+        <LapTraceViewer points={normalizedPoints} />
       )}
 
       {/* ── AI tab ── */}

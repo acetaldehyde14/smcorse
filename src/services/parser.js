@@ -602,20 +602,29 @@ class TelemetryParser {
       const bestLap = bestLapTimeVar
         ? buffer.readFloatLE(recOffset + bestLapTimeVar.dataOffset)
         : 0;
+      const curLapTime = currentLapTimeVar
+        ? buffer.readFloatLE(recOffset + currentLapTimeVar.dataOffset)
+        : 0;
 
       if (lap !== lastLap && lap >= 0) {
-        if (lastLapTime > 0 && lap > 0) {
-          // Avoid duplicates
-          const exists = lapTimes.some(l => Math.abs(l.time - lastLapTime) < 0.001);
+        // Use LapLastLapTime if valid; fall back to LapCurrentLapTime at the boundary
+        // (iRacing sets LapLastLapTime to -1 for invalidated laps, but the time is still real)
+        const effectiveTime = (lastLapTime > 0) ? lastLapTime
+                            : (curLapTime > 0 && curLapTime < 7200) ? curLapTime
+                            : 0;
+        // Store under lastLap (the completed lap's number), not lap (the new lap).
+        // IBT frames are labeled with the lap counter active *during* that frame,
+        // so the completed lap's frames all carry lastLap, not the incremented value.
+        if (effectiveTime > 0 && lastLap > 0) {
+          const exists = lapTimes.some(l => Math.abs(l.time - effectiveTime) < 0.001);
           if (!exists) {
-            lapTimes.push({
-              lap: lap,
-              time: lastLapTime
-            });
+            lapTimes.push({ lap: lastLap, time: effectiveTime });
           }
         }
         if (bestLap > 0) {
           bestLapTime = bestLap;
+        } else if (effectiveTime > 0 && (bestLapTime === 0 || effectiveTime < bestLapTime)) {
+          bestLapTime = effectiveTime;
         }
         lastLap = lap;
       }
@@ -828,10 +837,19 @@ class TelemetryParser {
       longAccel:    varHeaders['LongAccel'],
       yawRate:      varHeaders['YawRate'],
       trackTemp:    varHeaders['TrackTempCrew'],
-      airTemp:      varHeaders['AirTemp']
+      airTemp:      varHeaders['AirTemp'],
+      playerCarIdx: varHeaders['PlayerCarIdx'],
+      carIdxX:      varHeaders['CarIdxX'],
+      carIdxY:      varHeaders['CarIdxY'],
     };
 
     if (!ch.lap) return { frames: [], tickRate: header.tickRate };
+
+    // Determine player car index from the first record (it's an int, not an array)
+    let playerIdx = 0;
+    if (ch.playerCarIdx) {
+      playerIdx = buffer.readInt32LE(header.dataOffset + ch.playerCarIdx.dataOffset);
+    }
 
     const downsampleRate = Math.max(1, Math.floor(header.tickRate / targetHz));
     const RAD_TO_DEG = 180 / Math.PI;
@@ -862,6 +880,15 @@ class TelemetryParser {
       if (ch.longAccel)   frame.long_accel   = buffer.readFloatLE(recOffset + ch.longAccel.dataOffset);
       if (ch.yawRate)     frame.yaw_rate     = buffer.readFloatLE(recOffset + ch.yawRate.dataOffset);
       if (ch.trackTemp)   frame.track_temp_c = buffer.readFloatLE(recOffset + ch.trackTemp.dataOffset);
+      // Track position — CarIdxX/Y are float arrays (one entry per car); read player's entry
+      if (ch.carIdxX && ch.carIdxY) {
+        const xVal = buffer.readFloatLE(recOffset + ch.carIdxX.dataOffset + playerIdx * 4);
+        const yVal = buffer.readFloatLE(recOffset + ch.carIdxY.dataOffset + playerIdx * 4);
+        if (isFinite(xVal) && isFinite(yVal)) {
+          frame.x_pos = parseFloat(xVal.toFixed(2));
+          frame.y_pos = parseFloat(yVal.toFixed(2));
+        }
+      }
       if (ch.airTemp)     frame.air_temp_c   = buffer.readFloatLE(recOffset + ch.airTemp.dataOffset);
 
       frames.push(frame);

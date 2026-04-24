@@ -11,6 +11,68 @@ const { advanceStintPlan } = require('./races');
 const LOW_FUEL_MINS = 20;
 const FUEL_UPDATE_DEBOUNCE_MS = 8000;
 const CLIENT_ACTIVE_WINDOW_MS = 20000; // 20s without an event = client considered inactive
+const RAD_TO_DEG = 180 / Math.PI;
+
+// ── Live-session helpers (for telemetry_frames pipeline) ──────────
+
+async function findOrCreateLiveSession(userId, trackName, carName) {
+  const tn = trackName || null;
+  // Reuse any open live session that matches the track (or any open one if no track known)
+  const existing = await query(
+    `SELECT id FROM sessions
+     WHERE user_id = $1 AND ingest_mode = 'live' AND status = 'open'
+       AND ($2::text IS NULL OR track_name = $2)
+     ORDER BY created_at DESC LIMIT 1`,
+    [userId, tn]
+  );
+  if (existing.rowCount > 0) return existing.rows[0].id;
+
+  // Create a new live session
+  const trackSlug = trackName ? trackName.toLowerCase().replace(/[^a-z0-9]/g, '_') : 'live';
+  const carSlug   = carName   ? carName.toLowerCase().replace(/[^a-z0-9]/g, '_')   : 'unknown';
+  const created = await query(
+    `INSERT INTO sessions (user_id, track_id, track_name, car_id, car_name, session_type, ingest_mode, status)
+     VALUES ($1, $2, $3, $4, $5, 'practice', 'live', 'open') RETURNING id`,
+    [userId, trackSlug, trackName || 'Live Session', carSlug, carName || 'Unknown']
+  );
+  console.log(`[Live Session] Created session ${created.rows[0].id} for user ${userId} — ${trackName || 'Live Session'}`);
+  return created.rows[0].id;
+}
+
+async function insertTelemetryFrames(sessionId, userId, samples, lapNumber) {
+  if (!samples.length) return;
+  const CHUNK = 200;
+  for (let i = 0; i < samples.length; i += CHUNK) {
+    const chunk = samples.slice(i, i + CHUNK);
+    const values = [];
+    const params = [];
+    let p = 1;
+    for (const s of chunk) {
+      values.push(`($${p++},$${p++},NOW(),$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++})`);
+      params.push(
+        sessionId, userId,
+        s.t ?? null,
+        lapNumber ?? null,
+        s.spd != null ? Math.round(s.spd * 3.6 * 100) / 100 : null,
+        s.thr ?? null,
+        s.brk ?? null,
+        s.steer != null ? Math.round(s.steer * RAD_TO_DEG * 100) / 100 : null,
+        s.gear ?? null,
+        s.rpm ?? null,
+        s.ldp ?? null,
+        s.glat ?? null,
+        s.x ?? null,
+        s.y ?? null
+      );
+    }
+    await query(
+      `INSERT INTO telemetry_frames
+         (session_id, user_id, ts, session_time, lap_number, speed_kph, throttle, brake, steering_deg, gear, rpm, lap_dist_pct, lat_accel, x_pos, y_pos)
+       VALUES ${values.join(',')}`,
+      params
+    );
+  }
+}
 
 // Returns { driverUserId, active } for the current driver's client, or null if unknown.
 async function getDriverClientInfo(raceId) {
@@ -341,6 +403,7 @@ router.get('/status', authenticateToken, async (req, res) => {
 });
 
 // POST /api/iracing/telemetry — receive gzip-compressed telemetry batch from desktop client
+// Works for ALL session types (practice, qualifying, race, etc.)
 router.post('/telemetry', authenticateToken, async (req, res) => {
   try {
     let body;
@@ -351,29 +414,40 @@ router.post('/telemetry', authenticateToken, async (req, res) => {
       body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
     }
 
-    const { lap, samples } = body;
+    const { lap, samples, track, car } = body;
     if (!samples || !Array.isArray(samples) || samples.length === 0) {
       return res.status(400).json({ error: 'No samples provided' });
     }
 
-    const raceResult = await query('SELECT id FROM races WHERE is_active = TRUE LIMIT 1');
-    if (raceResult.rowCount === 0) {
-      return res.json({ ok: true, skipped: 'no_active_race' });
+    // 1. Always write to telemetry_frames (canonical analytics source)
+    //    and create/reuse a live session for this user.
+    const sessionId = await findOrCreateLiveSession(req.user.id, track || null, car || null);
+    await insertTelemetryFrames(sessionId, req.user.id, samples, lap ?? null);
+
+    // 2. Write to live_telemetry (raw ingest buffer — short-retention, race page reads).
+    //    Restricted to active-race + driver-client check for race telemetry.
+    //    session_id populated for migration 003+ databases; falls back gracefully
+    //    if the column doesn't exist yet (migration not yet applied).
+    //    Wrapped in try/catch so a schema mismatch never breaks the frames write above.
+    try {
+      const raceResult = await query('SELECT id FROM races WHERE is_active = TRUE LIMIT 1');
+      if (raceResult.rowCount > 0) {
+        const raceId = raceResult.rows[0].id;
+        if (await shouldAcceptEvent(raceId, req.user.id)) {
+          await query(
+            `INSERT INTO live_telemetry (race_id, session_id, user_id, lap, samples, sample_count)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [raceId, sessionId, req.user.id, lap ?? null, JSON.stringify(samples), samples.length]
+          );
+        }
+      }
+    } catch (liveErr) {
+      // Non-fatal: telemetry_frames write succeeded above.
+      // Common cause: migration 003 (adds session_id column) not yet applied.
+      console.warn('[POST /telemetry] live_telemetry write skipped:', liveErr.message);
     }
-    const raceId = raceResult.rows[0].id;
 
-    // Only store from driver's client (or fallback)
-    if (!(await shouldAcceptEvent(raceId, req.user.id))) {
-      return res.json({ ok: true, skipped: 'non_driver_client' });
-    }
-
-    await query(
-      `INSERT INTO live_telemetry (race_id, user_id, lap, samples, sample_count)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [raceId, req.user.id, lap ?? null, JSON.stringify(samples), samples.length]
-    );
-
-    res.json({ ok: true, stored: samples.length });
+    res.json({ ok: true, stored: samples.length, session_id: sessionId });
   } catch (err) {
     console.error('[POST /telemetry]', err.message);
     res.status(500).json({ error: 'Server error' });

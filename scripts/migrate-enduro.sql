@@ -1,3 +1,18 @@
+-- =============================================================================
+-- DEPRECATED: scripts/migrate-enduro.sql
+-- =============================================================================
+-- This file is superseded by migrations/002_operational_tables.sql.
+-- Do not use for new installs or schema changes.
+--
+-- Tables it created are now covered by migration 002:
+--   races, stint_roster, iracing_events, race_state
+-- User columns it added are now covered by migration 001:
+--   iracing_name, iracing_id, telegram_chat_id, discord_user_id,
+--   discord_webhook, is_active
+--
+-- Kept for git history only.
+-- =============================================================================
+
 -- ============================================================
 -- iRacing Enduro — Database Migration
 -- Run this once against your existing PostgreSQL database.

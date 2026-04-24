@@ -407,6 +407,66 @@
             font-family: 'Montserrat', sans-serif;
         }
 
+        /* Model Selector */
+        .model-selector {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .model-selector-label {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text);
+            opacity: 0.6;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .model-btn {
+            padding: 0.35rem 0.9rem;
+            border: 2px solid var(--border);
+            background: white;
+            color: var(--text);
+            font-family: 'Montserrat', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            border-radius: 20px;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .model-btn:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .model-btn.active {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
+
+        .model-btn .thinking-badge {
+            display: inline-block;
+            background: rgba(255,255,255,0.25);
+            font-size: 0.65rem;
+            padding: 0 4px;
+            border-radius: 3px;
+            margin-left: 4px;
+            vertical-align: middle;
+        }
+
+        .model-btn:not(.active) .thinking-badge {
+            background: rgba(0,102,204,0.12);
+            color: var(--primary);
+        }
+
         @media (max-width: 768px) {
             .message {
                 max-width: 90%;
@@ -438,6 +498,10 @@
                 <div class="status-indicator" id="statusIndicator">
                     <span class="status-dot"></span>
                     <span>Connecting...</span>
+                </div>
+                <div class="model-selector" id="modelSelector">
+                    <span class="model-selector-label">Model:</span>
+                    <!-- populated by loadModels() -->
                 </div>
             </div>
 
@@ -510,6 +574,41 @@
     <script>
         let conversationHistory = [];
         let isProcessing = false;
+        let selectedModel = 'glm-5.1'; // default; overridden once loadModels() resolves
+
+        // Populate model selector buttons from /api/assistant/models
+        async function loadModels() {
+            try {
+                const res = await fetch('/api/assistant/models');
+                if (!res.ok) return;
+                const data = await res.json();
+                selectedModel = data.default || 'glm-5.1';
+
+                const container = document.getElementById('modelSelector');
+                // keep the label, remove any existing buttons
+                const label = container.querySelector('.model-selector-label');
+                container.innerHTML = '';
+                container.appendChild(label);
+
+                data.models.forEach(m => {
+                    const btn = document.createElement('button');
+                    btn.className = 'model-btn' + (m.key === selectedModel ? ' active' : '');
+                    btn.dataset.key = m.key;
+                    btn.textContent = m.label;
+                    btn.addEventListener('click', () => selectModel(m.key));
+                    container.appendChild(btn);
+                });
+            } catch (_) {
+                // silently ignore — model selector just won't render
+            }
+        }
+
+        function selectModel(key) {
+            selectedModel = key;
+            document.querySelectorAll('.model-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.key === key);
+            });
+        }
 
         // Check AI status
         async function checkStatus() {
@@ -518,7 +617,7 @@
                 const data = await response.json();
 
                 const indicator = document.getElementById('statusIndicator');
-                if (data.status === 'ok' && data.model_available) {
+                if (data.status === 'ok') {
                     indicator.className = 'status-indicator';
                     indicator.innerHTML = '<span class="status-dot"></span><span>AI Engineer Online</span>';
                 } else {
@@ -640,7 +739,8 @@
                     },
                     body: JSON.stringify({
                         message: message,
-                        conversation_history: conversationHistory
+                        conversation_history: conversationHistory,
+                        model: selectedModel
                     })
                 });
 
@@ -683,11 +783,12 @@
         }
 
         // Initialize
+        loadModels();
         checkStatus();
         chatInput.focus();
 
-        // Refresh status every 30 seconds
-        setInterval(checkStatus, 30000);
+        // Refresh status every 5 minutes (health check is cached server-side)
+        setInterval(checkStatus, 300000);
     </script>
 </body>
 </html>

@@ -1,3 +1,17 @@
+-- =============================================================================
+-- DEPRECATED: iracing-enduro-server/db/migrate.sql
+-- =============================================================================
+-- This file is superseded by migrations/001_base_dimensions.sql and
+-- migrations/002_operational_tables.sql. Do not use for new installs.
+--
+-- Duplicate of scripts/migrate-enduro.sql with one extra column:
+--   users.created_at (already present via iracing-coach/database/schema.sql)
+--
+-- Tables it created are covered by migration 002.
+-- User columns it added are covered by migration 001.
+-- Kept for git history only.
+-- =============================================================================
+
 -- ============================================================
 -- iRacing Enduro — Database Migration
 -- Run this once against your existing PostgreSQL database.
