@@ -2,8 +2,8 @@
 
 import { useRef, useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { telemetry as telApi } from '@/lib/api';
-import type { LiveFrame, LiveSessionSummary } from '@/lib/types';
+import { telemetry as telApi, races as racesApi } from '@/lib/api';
+import type { LiveFrame, LiveSessionSummary, Race, RaceState } from '@/lib/types';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 
@@ -12,6 +12,7 @@ const WINDOW_S     = 30;
 const POLL_FRAMES  = 500;
 const POLL_SUMMARY = 3000;
 const POLL_ACTIVE  = 5000;
+const POLL_RACE    = 10000;
 
 // ── Canvas chart ─────────────────────────────────────────────────
 
@@ -71,6 +72,110 @@ function fmtSessionTime(secs: number | null): string {
   const s = Math.floor(secs % 60);
   if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
   return `${m}:${String(s).padStart(2,'0')}`;
+}
+
+// ── Active Race Banner ────────────────────────────────────────────
+
+function ActiveRaceBanner() {
+  const [race, setRace]   = useState<Race | null>(null);
+  const [raceState, setRaceState] = useState<RaceState | null>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const r = await racesApi.active();
+        setRace(r);
+        if (r?.id) {
+          try {
+            const { state } = await racesApi.state(r.id);
+            setRaceState(state);
+          } catch { /* state not available yet */ }
+        }
+      } catch {
+        setRace(null);
+        setRaceState(null);
+      }
+    };
+    load();
+    const iv = setInterval(load, POLL_RACE);
+    return () => clearInterval(iv);
+  }, []);
+
+  if (!race) return null;
+
+  const stintMins = race.stint_started_at
+    ? Math.floor((Date.now() - new Date(race.stint_started_at).getTime()) / 60000)
+    : null;
+
+  return (
+    <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4 mb-6">
+      <div className="flex items-center gap-3 mb-3 flex-wrap">
+        <span className="flex items-center gap-1.5 text-green-400 text-xs font-semibold uppercase tracking-wider">
+          <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+          Active Race
+        </span>
+        <span className="text-white font-heading font-bold">{race.name}</span>
+        {race.track && <span className="text-dark-muted text-sm">{race.track}</span>}
+        <Link href="/race" className="ml-auto text-xs text-[#0066cc] hover:underline font-semibold">
+          Manage race →
+        </Link>
+      </div>
+
+      <div className="flex flex-wrap gap-6">
+        {race.current_driver_name ? (
+          <div>
+            <p className="text-dark-muted text-xs mb-0.5">Current driver</p>
+            <p className="text-white font-semibold">{race.current_driver_name}</p>
+            {stintMins !== null && (
+              <p className="text-dark-muted text-xs">{stintMins}m into stint</p>
+            )}
+          </div>
+        ) : (
+          <div>
+            <p className="text-dark-muted text-xs mb-0.5">Current driver</p>
+            <p className="text-dark-muted text-sm">No driver set</p>
+          </div>
+        )}
+
+        {raceState?.last_fuel_level != null && (
+          <div>
+            <p className="text-dark-muted text-xs mb-0.5">Fuel</p>
+            <p className={`font-semibold text-lg font-heading ${raceState.last_fuel_level < 20 ? 'text-red-400' : raceState.last_fuel_level < 40 ? 'text-yellow-400' : 'text-white'}`}>
+              {raceState.last_fuel_level.toFixed(1)}%
+            </p>
+          </div>
+        )}
+
+        {raceState?.laps_completed != null && (
+          <div>
+            <p className="text-dark-muted text-xs mb-0.5">Laps</p>
+            <p className="text-white font-semibold text-lg font-heading">{raceState.laps_completed}</p>
+          </div>
+        )}
+
+        {raceState?.position != null && (
+          <div>
+            <p className="text-dark-muted text-xs mb-0.5">Position</p>
+            <p className="text-yellow-400 font-bold text-2xl font-heading">P{raceState.position}</p>
+          </div>
+        )}
+
+        {raceState?.best_lap_time != null && (
+          <div>
+            <p className="text-dark-muted text-xs mb-0.5">Best lap</p>
+            <p className="text-purple-400 font-mono text-sm font-semibold">{fmtLapTime(raceState.best_lap_time)}</p>
+          </div>
+        )}
+
+        {raceState?.gap_ahead != null && (
+          <div>
+            <p className="text-dark-muted text-xs mb-0.5">Gap ahead</p>
+            <p className="text-white font-mono text-sm">{raceState.gap_ahead.toFixed(1)}s</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 // ── Sub-components ───────────────────────────────────────────────
@@ -167,6 +272,9 @@ function LiveView({ sessionId, isLive }: { sessionId: number; isLive: boolean })
 
   return (
     <div>
+      {/* Active race banner above telemetry */}
+      <ActiveRaceBanner />
+
       {/* Session strip */}
       <div className="flex items-center gap-3 mb-6 flex-wrap">
         <div>
@@ -268,7 +376,7 @@ function LiveView({ sessionId, isLive }: { sessionId: number; isLive: boolean })
   );
 }
 
-// ── No-session state — shows recent live sessions ─────────────────
+// ── No-session state — shows active race + recent live sessions ───
 
 function NoSession() {
   const [sessions, setSessions] = useState<any[]>([]);
@@ -279,15 +387,14 @@ function NoSession() {
 
   return (
     <div>
-      <div className="text-center py-16">
+      {/* Active race banner — always show if a race is live */}
+      <ActiveRaceBanner />
+
+      <div className="text-center py-12">
         <p className="text-5xl mb-4">📡</p>
-        <p className="font-heading font-semibold text-white text-xl mb-2">No active live session</p>
+        <p className="font-heading font-semibold text-white text-xl mb-2">No active telemetry session</p>
         <p className="text-dark-muted text-sm mb-6">
-          Start the desktop client or call{' '}
-          <code className="bg-[#0a0f1c] px-1 rounded text-[#00aaff] text-xs">
-            POST /api/telemetry/live/session/start
-          </code>{' '}
-          to begin streaming.
+          Start the desktop client to stream live telemetry from your car.
         </p>
       </div>
 
@@ -327,8 +434,6 @@ export default function LivePage() {
   const [isLive, setIsLive]       = useState(false);
   // undefined = loading, null = nothing found, number = found
 
-  // Poll for an active session — only update on successful responses,
-  // never set null on transient network errors to avoid flickering.
   useEffect(() => {
     const check = async () => {
       try {
@@ -336,7 +441,6 @@ export default function LivePage() {
         setSessionId(res.session_id ?? null);
         setIsLive(!!(res as any).is_live);
       } catch {
-        // Keep current session visible on transient errors
         setSessionId(prev => prev === undefined ? null : prev);
       }
     };
@@ -350,11 +454,11 @@ export default function LivePage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="font-heading font-bold text-2xl text-white">Live Race Tracker</h1>
-          <p className="text-dark-muted text-sm">Real-time telemetry from the desktop client</p>
+          <p className="text-dark-muted text-sm">Real-time telemetry and race status</p>
         </div>
-        <Link href="/laps" className="text-xs text-dark-muted hover:text-white transition-colors">
+        <a href="/lap-analysis.html" className="text-xs text-dark-muted hover:text-white transition-colors">
           Lap Library →
-        </Link>
+        </a>
       </div>
 
       {sessionId === undefined && (

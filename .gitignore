@@ -5,6 +5,6 @@ logs/
 nul
 .claude/
 iracing-coach.tar.gz
-iracing-coach/
+
 users.db
 *.db

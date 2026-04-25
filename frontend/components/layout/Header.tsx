@@ -13,7 +13,7 @@ const navLinks = [
   { href: '/stint-planner', label: 'Stint Planner' },
   { href: '/calendar',      label: 'Calendar' },
   { href: '/team',          label: 'Team' },
-  { href: '/laps',          label: 'Laps' },
+  { href: '/lap-analysis.html', label: 'Laps' },
 ];
 
 export default function Header() {
@@ -38,19 +38,18 @@ export default function Header() {
 
           {/* Desktop nav */}
           <nav className="hidden md:flex items-center gap-1">
-            {navLinks.map(link => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={`px-3 py-2 rounded-lg text-sm font-body font-semibold transition-colors ${
-                  pathname === link.href
-                    ? 'bg-primary/20 text-accent'
-                    : 'text-dark-muted hover:text-white hover:bg-white/5'
-                }`}
-              >
-                {link.label}
-              </Link>
-            ))}
+            {navLinks.map(link => {
+              const cls = `px-3 py-2 rounded-lg text-sm font-body font-semibold transition-colors ${
+                pathname === link.href
+                  ? 'bg-primary/20 text-accent'
+                  : 'text-dark-muted hover:text-white hover:bg-white/5'
+              }`;
+              return link.href.endsWith('.html') ? (
+                <a key={link.href} href={link.href} className={cls}>{link.label}</a>
+              ) : (
+                <Link key={link.href} href={link.href} className={cls}>{link.label}</Link>
+              );
+            })}
           </nav>
 
           {/* User menu */}
@@ -88,20 +87,18 @@ export default function Header() {
         {/* Mobile nav */}
         {menuOpen && (
           <nav className="md:hidden pb-4 flex flex-col gap-1">
-            {navLinks.map(link => (
-              <Link
-                key={link.href}
-                href={link.href}
-                onClick={() => setMenuOpen(false)}
-                className={`px-3 py-2 rounded-lg text-sm font-body font-semibold transition-colors ${
-                  pathname === link.href
-                    ? 'bg-primary/20 text-accent'
-                    : 'text-dark-muted hover:text-white hover:bg-white/5'
-                }`}
-              >
-                {link.label}
-              </Link>
-            ))}
+            {navLinks.map(link => {
+              const cls = `px-3 py-2 rounded-lg text-sm font-body font-semibold transition-colors ${
+                pathname === link.href
+                  ? 'bg-primary/20 text-accent'
+                  : 'text-dark-muted hover:text-white hover:bg-white/5'
+              }`;
+              return link.href.endsWith('.html') ? (
+                <a key={link.href} href={link.href} onClick={() => setMenuOpen(false)} className={cls}>{link.label}</a>
+              ) : (
+                <Link key={link.href} href={link.href} onClick={() => setMenuOpen(false)} className={cls}>{link.label}</Link>
+              );
+            })}
             <button
               onClick={() => { setMenuOpen(false); logout(); }}
               className="text-left px-3 py-2 text-sm text-dark-muted hover:text-white font-body"

@@ -9,10 +9,10 @@ const featureCards = [
   { href: '/stint-planner', icon: '📅', title: 'Stint Planner', desc: 'Plan driver availability and stints', color: 'from-accent/20 to-transparent' },
   { href: '/calendar', icon: '🗓️', title: 'Race Calendar', desc: 'Upcoming events and countdown timers', color: 'from-emerald-500/20 to-transparent' },
   { href: '/team', icon: '👥', title: 'Team', desc: 'Manage roster and notification settings', color: 'from-purple-500/20 to-transparent' },
-  { href: '/laps', icon: '📊', title: 'Telemetry', desc: 'Browse lap library, traces and features', color: 'from-yellow-500/20 to-transparent' },
+  { href: '/lap-analysis.html', icon: '📊', title: 'Telemetry', desc: 'Browse lap library, traces and features', color: 'from-yellow-500/20 to-transparent' },
   { href: '/coaching', icon: '🤖', title: 'AI Coaching', desc: 'Compare laps and get AI feedback', color: 'from-pink-500/20 to-transparent' },
   { href: '/assistant', icon: '💬', title: 'Race Engineer', desc: 'Chat with your AI race engineer', color: 'from-orange-500/20 to-transparent' },
-  { href: '/laps', icon: '📚', title: 'Lap Library', desc: 'Reference laps and leaderboards', color: 'from-teal-500/20 to-transparent' },
+  { href: '/library.html', icon: '📚', title: 'Lap Library', desc: 'Reference laps and leaderboards', color: 'from-teal-500/20 to-transparent' },
   { href: '/settings', icon: '⚙️', title: 'Settings', desc: 'Profile, notifications and preferences', color: 'from-gray-500/20 to-transparent' },
 ];
 

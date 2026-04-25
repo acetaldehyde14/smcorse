@@ -41,11 +41,14 @@ function interpolateField(frameA, frameB, t, field) {
 function resampleFrames(frames) {
   if (!frames || frames.length === 0) return [];
 
-  // Normalize speed from m/s -> kph, throttle/brake from [0,1] -> [0,100]
+  // Normalize telemetry to coaching units.
+  // speed_kph is canonical in current schema; keep speed_ms fallback for legacy rows.
   const normalized = frames.map(f => ({
     lap_dist_pct:  Number(f.lap_dist_pct),
     session_time_s: f.session_time != null ? Number(f.session_time) : null,
-    speed_kph:     f.speed_ms != null ? Number(f.speed_ms) * 3.6 : null,
+    speed_kph:     f.speed_kph != null
+      ? Number(f.speed_kph)
+      : (f.speed_ms != null ? Number(f.speed_ms) * 3.6 : null),
     throttle_pct:  f.throttle  != null ? Number(f.throttle) * 100 : null,
     brake_pct:     f.brake     != null ? Number(f.brake)    * 100 : null,
     gear:          f.gear      != null ? Number(f.gear)          : null,
@@ -242,7 +245,7 @@ async function buildReferenceForLap(referenceId, lapId, db) {
 
   // 1. Load telemetry frames
   const framesResult = await dbQuery(
-    `SELECT lap_dist_pct, session_time, speed_ms, throttle, brake, gear, rpm,
+    `SELECT lap_dist_pct, session_time, speed_kph, throttle, brake, gear, rpm,
             lat_accel, long_accel, yaw_rate
      FROM telemetry_frames
      WHERE lap_id = $1

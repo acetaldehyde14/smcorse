@@ -219,16 +219,29 @@ router.get('/profile/active', async (req, res) => {
   try {
     // Get active reference for this user/track/car
     const refResult = await query(
-      `SELECT id, lap_id, track_id, track_name, track_config, car_id, car_name,
-              title, notes, created_at, updated_at
+      `SELECT crl.id, crl.lap_id, crl.track_id, crl.track_name, crl.track_config, crl.car_id, crl.car_name,
+              crl.title, crl.notes, crl.created_at, crl.updated_at,
+              t.length_meters AS track_length_m
        FROM coaching_reference_laps
-       WHERE user_id = $1 AND track_id = $2 AND car_id = $3 AND is_active = TRUE
+       crl
+       LEFT JOIN tracks t
+         ON t.track_code = crl.track_id
+       WHERE crl.user_id = $1 AND crl.track_id = $2 AND crl.car_id = $3 AND crl.is_active = TRUE
        LIMIT 1`,
       [req.user.id, track_id, car_id]
     );
 
     if (!refResult.rows.length) {
-      return res.json({ reference: null, zones: [] });
+      return res.json({
+        profile_id: null,
+        track_id: String(track_id),
+        car_id: String(car_id),
+        track_name: null,
+        car_name: null,
+        track_length_m: null,
+        version: 1,
+        zones: [],
+      });
     }
 
     const reference = refResult.rows[0];
@@ -247,12 +260,100 @@ router.get('/profile/active', async (req, res) => {
     );
 
     res.json({
-      reference,
+      profile_id: reference.id,
+      track_id: reference.track_id,
+      car_id: reference.car_id,
+      track_name: reference.track_name,
+      car_name: reference.car_name,
+      track_length_m: reference.track_length_m || null,
+      version: 1,
       zones: zonesResult.rows,
     });
   } catch (err) {
     console.error('[coaching] profile/active error:', err);
     res.status(500).json({ error: 'Failed to fetch coaching profile' });
+  }
+});
+
+/**
+ * GET /api/coaching/profile/by-session/:sessionId
+ * Resolve session track/car and return active profile for that context.
+ */
+router.get('/profile/by-session/:sessionId', async (req, res) => {
+  const sessionId = parseInt(req.params.sessionId, 10);
+  if (!Number.isFinite(sessionId)) {
+    return res.status(400).json({ error: 'Invalid sessionId' });
+  }
+
+  try {
+    const sessionResult = await query(
+      'SELECT track_id, car_id FROM sessions WHERE id = $1 LIMIT 1',
+      [sessionId]
+    );
+
+    if (!sessionResult.rows.length) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    const { track_id, car_id } = sessionResult.rows[0];
+    if (!track_id || !car_id) {
+      return res.status(400).json({ error: 'Session has no track_id/car_id' });
+    }
+
+    const refResult = await query(
+      `SELECT crl.id, crl.track_id, crl.track_name, crl.car_id, crl.car_name,
+              t.length_meters AS track_length_m
+       FROM coaching_reference_laps crl
+       LEFT JOIN tracks t
+         ON t.track_code = crl.track_id
+       WHERE crl.user_id = $1
+         AND crl.track_id = $2
+         AND crl.car_id = $3
+         AND crl.is_active = TRUE
+       LIMIT 1`,
+      [req.user.id, track_id, car_id]
+    );
+
+    if (!refResult.rows.length) {
+      return res.json({
+        profile_id: null,
+        track_id: String(track_id),
+        car_id: String(car_id),
+        track_name: null,
+        car_name: null,
+        track_length_m: null,
+        version: 1,
+        zones: [],
+      });
+    }
+
+    const reference = refResult.rows[0];
+    const zonesResult = await query(
+      `SELECT zone_id, sequence_index, name, segment_type,
+              lap_dist_start, lap_dist_callout, lap_dist_end,
+              target_entry_speed_kph, target_min_speed_kph, target_exit_speed_kph,
+              target_brake_peak_pct, target_brake_release_pct,
+              target_throttle_reapply_pct, target_gear, target_duration_s,
+              priority, generic_display_text, generic_voice_key, correction_template_json
+       FROM coaching_zones
+       WHERE reference_lap_id = $1
+       ORDER BY sequence_index ASC`,
+      [reference.id]
+    );
+
+    return res.json({
+      profile_id: reference.id,
+      track_id: reference.track_id,
+      car_id: reference.car_id,
+      track_name: reference.track_name,
+      car_name: reference.car_name,
+      track_length_m: reference.track_length_m || null,
+      version: 1,
+      zones: zonesResult.rows,
+    });
+  } catch (err) {
+    console.error('[coaching] profile/by-session error:', err);
+    return res.status(500).json({ error: 'Failed to fetch profile by session' });
   }
 });
 

@@ -1,580 +1,744 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lap Analysis - SM CORSE</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --primary: #0066cc;
-            --primary-dark: #004d99;
-            --accent: #00aaff;
-            --success: #28a745;
-            --danger: #dc3545;
-            --warning: #ffc107;
-            --dark: #0a0f1c;
-            --surface: #f8f9fa;
-            --text: #2c3e50;
-            --light: #ffffff;
-            --border: #e0e6ed;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lap Analysis – SM CORSE</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html,body { height:100%; overflow:hidden; }
+body { font-family:'Rajdhani',sans-serif; background:#060d1a; color:#fff; display:flex; flex-direction:column; }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+/* ── Top bar ── */
+#topbar {
+  height:44px; flex-shrink:0;
+  display:flex; align-items:center; gap:10px;
+  background:#07101f; border-bottom:1px solid #1a2540; padding:0 14px;
+}
+#branding {
+  font-family:'Montserrat',sans-serif; font-size:0.6rem; font-weight:800;
+  letter-spacing:2.5px; text-transform:uppercase; color:#8892a4; white-space:nowrap; margin-right:4px;
+}
+.ltab {
+  display:flex; align-items:center; gap:5px; padding:3px 10px; border-radius:3px;
+  cursor:pointer; font-size:0.68rem; font-weight:700; font-family:'Montserrat',sans-serif;
+  border:1px solid #1a2540; background:transparent; color:#5a6880; transition:all .15s; white-space:nowrap;
+}
+.ltab.act-a { border-color:#2196f3; color:#2196f3; background:rgba(33,150,243,.12); }
+.ltab.act-b { border-color:#ff9800; color:#ff9800; background:rgba(255,152,0,.12); }
+.ldot { width:7px; height:7px; border-radius:50%; }
+.ldot-a { background:#2196f3; } .ldot-b { background:#ff9800; }
+.ltab-name { white-space:nowrap; }
+.ltab-sel { display:none; align-items:center; gap:5px; max-width:140px; }
+.ltab.has-lap .ltab-sel { display:flex; }
+.ltab-seltime { font-size:.66rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; opacity:.85; }
+.ltab-x {
+  display:flex; align-items:center; justify-content:center;
+  width:14px; height:14px; border-radius:50%; flex-shrink:0;
+  font-size:.65rem; line-height:1; font-weight:900; cursor:pointer;
+  background:rgba(255,255,255,.1); opacity:.7; transition:opacity .15s, background .15s;
+}
+.ltab-x:hover { opacity:1; background:rgba(255,255,255,.25); }
+#topMeta { flex:1; display:flex; align-items:center; gap:14px; min-width:0; overflow:hidden; }
+#topTrack { font-size:0.78rem; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#topCar { font-size:0.7rem; color:#4a5870; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#topBack { margin-left:auto; font-size:0.62rem; color:#3a4560; text-decoration:none; white-space:nowrap; }
+#topBack:hover { color:#8892a4; }
 
-        body {
-            font-family: 'Rajdhani', sans-serif;
-            background: var(--surface);
-            color: var(--text);
-            min-height: 100vh;
-        }
+/* ── App layout ── */
+#app { display:flex; flex:1; overflow:hidden; }
 
-        .container {
-            max-width: 1600px;
-            margin: 0 auto;
-            padding: 2rem;
-        }
+/* ── Sidebar ── */
+#sidebar {
+  width:190px; min-width:190px;
+  background:#060d1a; border-right:1px solid #1a2540;
+  display:flex; flex-direction:column; overflow:hidden;
+}
+#sfWrap { padding:7px; border-bottom:1px solid #1a2540; }
+#sfInput {
+  width:100%; background:#0a1020; border:1px solid #1a2540;
+  color:#fff; font-family:'Rajdhani',sans-serif; font-size:0.72rem;
+  padding:4px 7px; border-radius:3px; outline:none;
+}
+#sfInput::placeholder { color:#2a3550; }
+#lapList { flex:1; overflow-y:auto; scrollbar-width:thin; scrollbar-color:#1a2540 transparent; }
+.li {
+  padding:6px 8px 6px 11px; cursor:pointer; border-bottom:1px solid #090e1c;
+  border-left:3px solid transparent; position:relative; transition:background .1s;
+}
+.li:hover { background:#0a1020; }
+.li.la { border-left-color:#2196f3; }
+.li.lb { border-left-color:#ff9800; }
+.li .lt { font-size:0.7rem; font-weight:600; color:#c0c8d8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.li .lc { font-size:0.62rem; color:#3a4860; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:1px; }
+.li .lv { font-family:'Montserrat',sans-serif; font-size:0.64rem; font-weight:700; color:#5a6880; margin-top:2px; }
+.li.la .lv { color:#2196f3; } .li.lb .lv { color:#ff9800; }
+.lbadge {
+  position:absolute; top:7px; right:6px;
+  font-size:0.56rem; font-weight:800; font-family:'Montserrat',sans-serif;
+  padding:1px 4px; border-radius:2px;
+}
+.ba { background:rgba(33,150,243,.2); color:#2196f3; }
+.bb { background:rgba(255,152,0,.2); color:#ff9800; }
+.lx {
+  position:absolute; top:50%; right:6px; transform:translateY(-50%);
+  width:14px; height:14px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  font-size:.6rem; font-weight:900; cursor:pointer; color:#fff;
+  background:rgba(255,255,255,.08); opacity:.6; transition:opacity .15s, background .15s;
+  font-family:'Montserrat',sans-serif;
+}
+.lx:hover { opacity:1; background:rgba(255,255,255,.2); }
 
-        /* Header */
-        header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: white;
-            margin: -2rem -2rem 3rem -2rem;
-            padding: 1.5rem 2rem;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            border-bottom: 2px solid var(--border);
-        }
+/* ── Content ── */
+#content { flex:1; display:flex; flex-direction:column; overflow:hidden; }
 
-        .logo-container {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            cursor: pointer;
-        }
+/* ── Stats bar ── */
+#statsBar { display:flex; flex-shrink:0; background:#060d1a; border-bottom:1px solid #1a2540; }
+.sb { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:7px 4px; border-right:1px solid #1a2540; }
+.sb:last-child { border-right:none; }
+.sv { font-family:'Montserrat',sans-serif; font-size:.98rem; font-weight:700; color:#fff; line-height:1; }
+.sl { font-size:.5rem; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color:#2a3550; margin-top:2px; }
 
-        .logo-img { height: 50px; width: auto; }
+/* ── Chart area ── */
+#chartArea { flex:1; display:flex; overflow:hidden; }
 
-        .header-right {
-            display: flex;
-            align-items: center;
-            gap: 1.2rem;
-        }
+/* ── Track map ── */
+#mapPanel {
+  width:30%; min-width:155px;
+  border-right:1px solid #1a2540; position:relative; overflow:hidden;
+  background:#050c18;
+}
+#cvMap { position:absolute; inset:0; display:block; width:100%; height:100%; }
+#gearOv {
+  position:absolute; bottom:12px; left:50%; transform:translateX(-50%);
+  font-family:'Montserrat',sans-serif; font-size:2.6rem; font-weight:800;
+  color:rgba(255,255,255,.07); pointer-events:none; user-select:none;
+}
+#mapEmpty {
+  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  color:#2a3550; font-size:.72rem; font-family:'Montserrat',sans-serif; pointer-events:none;
+}
 
-        .back-btn {
-            padding: 0.6rem 1.4rem;
-            border: 2px solid var(--primary);
-            background: transparent;
-            color: var(--primary);
-            font-family: 'Montserrat', sans-serif;
-            font-weight: 600;
-            font-size: 0.85rem;
-            cursor: pointer;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            border-radius: 4px;
-            text-decoration: none;
-            display: inline-block;
-            transition: all 0.2s ease;
-        }
+/* ── Traces ── */
+#traces { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+.tr { flex:1; position:relative; border-bottom:1px solid #1a2540; overflow:hidden; }
+.tr:last-child { border-bottom:none; }
+.tc { position:absolute; inset:0; display:block; width:100%; height:100%; cursor:crosshair; }
+.tlbl { position:absolute; top:4px; left:7px; font-size:.52rem; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:#1e2c44; font-family:'Montserrat',sans-serif; pointer-events:none; }
+.tval { position:absolute; top:3px; right:7px; font-size:.68rem; font-weight:700; font-family:'Montserrat',sans-serif; pointer-events:none; }
+#emptyHint { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#2a3550; font-size:.72rem; font-family:'Montserrat',sans-serif; pointer-events:none; }
 
-        .back-btn:hover { background: var(--primary); color: white; }
-
-        .logout-btn {
-            padding: 0.6rem 1.4rem;
-            border: 2px solid var(--border);
-            background: transparent;
-            color: var(--text);
-            font-family: 'Montserrat', sans-serif;
-            font-weight: 600;
-            font-size: 0.85rem;
-            cursor: pointer;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            border-radius: 4px;
-            transition: all 0.2s ease;
-        }
-
-        .logout-btn:hover { border-color: var(--danger); color: var(--danger); }
-
-        /* Page header */
-        .page-header {
-            margin-bottom: 2rem;
-        }
-
-        .page-header h1 {
-            font-family: 'Montserrat', sans-serif;
-            font-size: 2.2rem;
-            color: var(--primary);
-            font-weight: 800;
-            margin-bottom: 0.3rem;
-        }
-
-        .page-header p {
-            font-size: 1.1rem;
-            color: var(--text);
-            opacity: 0.75;
-        }
-
-        /* Filter card */
-        .card {
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
-            border-left: 4px solid var(--primary);
-        }
-
-        .filters {
-            display: flex;
-            gap: 0.8rem;
-            flex-wrap: wrap;
-            align-items: flex-end;
-        }
-
-        .filter-group {
-            display: flex;
-            flex-direction: column;
-            gap: 0.3rem;
-            flex: 1;
-            min-width: 130px;
-        }
-
-        .filter-group label {
-            font-family: 'Montserrat', sans-serif;
-            font-weight: 600;
-            font-size: 0.78rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: var(--text);
-            opacity: 0.8;
-        }
-
-        .filter-group input,
-        .filter-group select {
-            padding: 0.55rem 0.7rem;
-            border: 2px solid var(--border);
-            border-radius: 4px;
-            font-family: 'Rajdhani', sans-serif;
-            font-size: 1rem;
-            color: var(--text);
-            background: white;
-            transition: border-color 0.2s;
-        }
-
-        .filter-group input:focus,
-        .filter-group select:focus {
-            outline: none;
-            border-color: var(--primary);
-        }
-
-        .filter-actions {
-            display: flex;
-            gap: 0.5rem;
-            align-items: flex-end;
-            flex-shrink: 0;
-        }
-
-        .btn-primary {
-            padding: 0.6rem 1.4rem;
-            background: var(--primary);
-            border: none;
-            color: white;
-            font-family: 'Montserrat', sans-serif;
-            font-weight: 600;
-            font-size: 0.85rem;
-            cursor: pointer;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            border-radius: 4px;
-            transition: background 0.2s;
-            white-space: nowrap;
-        }
-
-        .btn-primary:hover { background: var(--primary-dark); }
-
-        /* Status bar */
-        .status {
-            padding: 0.6rem 1rem;
-            border-radius: 4px;
-            font-size: 0.95rem;
-            font-weight: 600;
-            margin-top: 1rem;
-        }
-
-        .status.info    { background: #e3f2fd; color: #1565c0; }
-        .status.success { background: #e8f5e9; color: #2e7d32; }
-        .status.error   { background: #ffebee; color: #c62828; }
-
-        /* Table */
-        .table-container {
-            overflow-x: auto;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.95rem;
-        }
-
-        thead th {
-            background: var(--primary);
-            color: white;
-            font-family: 'Montserrat', sans-serif;
-            font-weight: 600;
-            font-size: 0.78rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            padding: 0.75rem 0.8rem;
-            text-align: left;
-            white-space: nowrap;
-            position: sticky;
-            top: 0;
-        }
-
-        tbody tr {
-            border-bottom: 1px solid var(--border);
-            transition: background 0.15s;
-        }
-
-        tbody tr:hover { background: #f0f5ff; }
-
-        tbody td {
-            padding: 0.65rem 0.8rem;
-            vertical-align: middle;
-        }
-
-        .lap-time {
-            font-family: 'Montserrat', sans-serif;
-            font-weight: 700;
-            color: var(--primary);
-            font-variant-numeric: tabular-nums;
-        }
-
-        .badge {
-            display: inline-block;
-            padding: 0.15rem 0.5rem;
-            border-radius: 3px;
-            font-size: 0.78rem;
-            font-weight: 600;
-            font-family: 'Montserrat', sans-serif;
-        }
-
-        .badge-valid   { background: #e8f5e9; color: #2e7d32; }
-        .badge-invalid { background: #ffebee; color: #c62828; }
-
-        /* Action buttons */
-        .actions { white-space: nowrap; display: flex; gap: 0.35rem; }
-
-        .btn-sm {
-            padding: 0.3rem 0.65rem;
-            border: none;
-            border-radius: 3px;
-            font-family: 'Montserrat', sans-serif;
-            font-weight: 600;
-            font-size: 0.72rem;
-            text-transform: uppercase;
-            letter-spacing: 0.4px;
-            cursor: pointer;
-            transition: all 0.15s;
-            white-space: nowrap;
-        }
-
-        .btn-view      { background: #e3f2fd; color: #1565c0; }
-        .btn-view:hover { background: #1565c0; color: white; }
-
-        .btn-ref       { background: #e8f5e9; color: #2e7d32; }
-        .btn-ref:hover  { background: #2e7d32; color: white; }
-
-        .btn-compare   { background: #fff3e0; color: #e65100; }
-        .btn-compare:hover { background: #e65100; color: white; }
-
-        /* Empty state */
-        #emptyState {
-            text-align: center;
-            padding: 3rem 2rem;
-            color: var(--text);
-            opacity: 0.6;
-        }
-
-        #emptyState h3 {
-            font-family: 'Montserrat', sans-serif;
-            font-size: 1.3rem;
-            margin-bottom: 0.5rem;
-        }
-
-        @media (max-width: 900px) {
-            .filters { flex-direction: column; }
-            .filter-group { min-width: 100%; }
-            .filter-actions { width: 100%; }
-            .btn-primary { width: 100%; }
-        }
-    </style>
+::-webkit-scrollbar { width:3px; }
+::-webkit-scrollbar-thumb { background:#1a2540; }
+</style>
 </head>
 <body>
-<div class="container">
-    <header>
-        <div class="logo-container" onclick="window.location.href='/dashboard'">
-            <img src="/img/sm_corse_only_blue.png" alt="SM CORSE" class="logo-img">
-        </div>
-        <div class="header-right">
-            <a href="/dashboard" class="back-btn">Dashboard</a>
-            <button class="logout-btn" onclick="logout()">Logout</button>
-        </div>
-    </header>
 
-    <main>
-        <div class="page-header">
-            <h1>Lap Analysis</h1>
-            <p>Review fastest laps, open telemetry detail, and set a reference lap for coaching.</p>
-        </div>
+<div id="topbar">
+  <span id="branding">SM CORSE ANALYSIS</span>
+  <button class="ltab act-a" id="tabA" onclick="setTab('a')">
+    <span class="ldot ldot-a"></span>
+    <span class="ltab-name">Lap A</span>
+    <span class="ltab-sel" id="selA">
+      <span class="ltab-seltime" id="selATime"></span>
+      <span class="ltab-x" onclick="clearLap('a');event.stopPropagation()">×</span>
+    </span>
+  </button>
+  <button class="ltab" id="tabB" onclick="setTab('b')">
+    <span class="ldot ldot-b"></span>
+    <span class="ltab-name">Lap B</span>
+    <span class="ltab-sel" id="selB">
+      <span class="ltab-seltime" id="selBTime"></span>
+      <span class="ltab-x" onclick="clearLap('b');event.stopPropagation()">×</span>
+    </span>
+  </button>
+  <div id="topMeta">
+    <span id="topTrack">—</span>
+    <span id="topCar"></span>
+  </div>
+  <a href="/dashboard" id="topBack">← Dashboard</a>
+</div>
 
-        <div class="card">
-            <form id="filterForm" class="filters">
-                <div class="filter-group">
-                    <label for="trackFilter">Track ID</label>
-                    <input id="trackFilter" type="text" placeholder="e.g. spa">
-                </div>
-                <div class="filter-group">
-                    <label for="carFilter">Car ID</label>
-                    <input id="carFilter" type="text" placeholder="e.g. porsche992rgt3">
-                </div>
-                <div class="filter-group">
-                    <label for="sessionFilter">Session ID</label>
-                    <input id="sessionFilter" type="text" placeholder="Session ID">
-                </div>
-                <div class="filter-group" style="max-width:130px;">
-                    <label for="validFilter">Validity</label>
-                    <select id="validFilter">
-                        <option value="">All laps</option>
-                        <option value="true">Valid only</option>
-                        <option value="false">Invalid only</option>
-                    </select>
-                </div>
-                <div class="filter-group" style="max-width:100px;">
-                    <label for="limitFilter">Limit</label>
-                    <select id="limitFilter">
-                        <option value="50">50</option>
-                        <option value="100" selected>100</option>
-                        <option value="250">250</option>
-                    </select>
-                </div>
-                <div class="filter-actions">
-                    <button id="refreshButton" type="button" class="btn-primary">Refresh</button>
-                </div>
-            </form>
-            <div id="statusMessage" class="status info">Loading laps...</div>
-        </div>
+<div id="app">
+  <div id="sidebar">
+    <div id="sfWrap"><input id="sfInput" type="text" placeholder="Filter…" oninput="filterLaps(this.value)"></div>
+    <div id="lapList"><div style="padding:12px 10px;color:#2a3550;font-size:.72rem">Loading laps…</div></div>
+  </div>
 
-        <div class="card" style="padding:0; border-left-color: var(--accent);">
-            <div id="emptyState" style="display:none;">
-                <h3>No laps found</h3>
-                <p>Upload telemetry or adjust your filters.</p>
-            </div>
-            <div class="table-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Lap ID</th>
-                            <th>Session</th>
-                            <th>Lap #</th>
-                            <th>Lap Time</th>
-                            <th>Valid</th>
-                            <th>Track</th>
-                            <th>Car</th>
-                            <th>Avg Speed</th>
-                            <th>Max Speed</th>
-                            <th>Peak Brake</th>
-                            <th>Full Throttle %</th>
-                            <th>Smoothness</th>
-                            <th>Created</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="lapsTableBody"></tbody>
-                </table>
-            </div>
+  <div id="content">
+    <div id="statsBar">
+      <div class="sb"><span class="sv" id="sv0">—</span><span class="sl">FULL THR %</span></div>
+      <div class="sb"><span class="sv" id="sv1">—</span><span class="sl">MAX KPH</span></div>
+      <div class="sb"><span class="sv" id="sv2">—</span><span class="sl">AVG KPH</span></div>
+      <div class="sb"><span class="sv" id="sv3">—</span><span class="sl">BRK ZONES</span></div>
+      <div class="sb"><span class="sv" id="sv4">—</span><span class="sl">LIFT COUNT</span></div>
+      <div class="sb"><span class="sv" id="sv5">—</span><span class="sl">GEAR</span></div>
+      <div class="sb"><span class="sv" id="sv6">—</span><span class="sl">MAX RPM</span></div>
+      <div class="sb"><span class="sv" id="sv7">—</span><span class="sl">LAP TIME</span></div>
+    </div>
+
+    <div id="chartArea">
+      <div id="mapPanel">
+        <canvas id="cvMap"></canvas>
+        <div id="gearOv">—</div>
+        <div id="mapEmpty">Select a lap</div>
+      </div>
+      <div id="traces">
+        <div class="tr">
+          <canvas class="tc" id="cvSpeed"></canvas>
+          <span class="tlbl">SPEED</span>
+          <span class="tval" id="vSpeed" style="color:#2196f3">—</span>
+          <div id="emptyHint">Select a lap from the sidebar</div>
         </div>
-    </main>
+        <div class="tr">
+          <canvas class="tc" id="cvTB"></canvas>
+          <span class="tlbl">THROTTLE / BRAKE</span>
+          <span class="tval" id="vTB" style="color:#8892a4">—</span>
+        </div>
+        <div class="tr">
+          <canvas class="tc" id="cvSteer"></canvas>
+          <span class="tlbl">STEERING</span>
+          <span class="tval" id="vSteer" style="color:#ffc107">—</span>
+        </div>
+        <div class="tr">
+          <canvas class="tc" id="cvRPM"></canvas>
+          <span class="tlbl">RPM / GEAR</span>
+          <span class="tval" id="vRPM" style="color:#aa88ff">—</span>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
-    // ── Helpers ────────────────────────────────────────────────────────────────
+// ── Auth ──────────────────────────────────────────────────────────────────────
+function getHeaders() {
+  const tok = localStorage.getItem('jwtToken');
+  const h = { 'Content-Type': 'application/json' };
+  if (tok) h['Authorization'] = 'Bearer ' + tok;
+  return h;
+}
+async function apiFetch(url) {
+  const res = await fetch(url, { headers: getHeaders(), credentials: 'include' });
+  if (res.status === 401) { window.location.href = '/'; throw new Error('auth'); }
+  if (!res.ok) throw new Error(res.status);
+  return res.json();
+}
 
-    function formatLapTime(seconds) {
-        if (seconds == null || Number.isNaN(Number(seconds))) return '—';
-        const total = Number(seconds);
-        const minutes = Math.floor(total / 60);
-        const rem = total - minutes * 60;
-        return `${minutes}:${rem.toFixed(3).padStart(6, '0')}`;
+// ── State ──────────────────────────────────────────────────────────────────────
+let allLaps = [], filteredLaps = [];
+let lapA = null, lapB = null;
+let telA = null, telB = null;
+let activeTab = 'a';
+let zoomStart = 0, zoomEnd = 1;
+let cursorPct = null;
+let dragAnchorPct = null, dragMoved = false;
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+async function init() {
+  try {
+    const data = await apiFetch('/api/telemetry/all-laps');
+    allLaps = (data.laps || []).sort((a, b) =>
+      (a.track_name || '').localeCompare(b.track_name || '') ||
+      (a.lap_time || 0) - (b.lap_time || 0)
+    );
+    filteredLaps = allLaps;
+    renderList();
+  } catch (e) {
+    if (e.message !== 'auth')
+      document.getElementById('lapList').innerHTML =
+        '<div style="padding:12px 10px;color:#aa3333;font-size:.72rem">Failed to load laps</div>';
+  }
+}
+
+// ── Utils ──────────────────────────────────────────────────────────────────────
+function fmtTime(s) {
+  if (!s || s <= 0) return '—';
+  const m = Math.floor(s / 60);
+  return `${m}:${(s % 60).toFixed(3).padStart(6, '0')}`;
+}
+
+function normFrames(raw) {
+  return raw.map(f => ({
+    pct:   f.lap_dist_pct  != null ? +f.lap_dist_pct  : (f.LapDistPct != null ? +f.LapDistPct : null),
+    speed: f.speed_kph     != null ? +f.speed_kph     : (f.Speed      != null ? +f.Speed * 3.6 : null),
+    thr:   f.throttle      != null ? +f.throttle      : (f.Throttle   != null ? +f.Throttle    : null),
+    brk:   f.brake         != null ? +f.brake         : (f.Brake      != null ? +f.Brake       : null),
+    steer: f.steering_deg  != null ? +f.steering_deg  : (f.SteeringWheelAngle != null ? +f.SteeringWheelAngle * (180 / Math.PI) : null),
+    gear:  f.gear          != null ? +f.gear          : (f.Gear       != null ? +f.Gear        : null),
+    rpm:   f.rpm           != null ? +f.rpm           : (f.RPM        != null ? +f.RPM         : null),
+    x:     f.x_pos         != null ? +f.x_pos         : null,
+    y:     f.y_pos         != null ? +f.y_pos         : null,
+    t:     f.session_time  != null ? +f.session_time  : null,
+    yaw:   f.yaw_rate      != null ? +f.yaw_rate      : null,
+  })).filter(f => f.pct != null && f.pct >= 0 && f.pct <= 1.001);
+}
+
+function buildXYFromYaw(frames) {
+  const hasYaw = frames.some(f => f.yaw != null);
+  if (!hasYaw) return frames;
+  let x = 0, y = 0, heading = Math.PI / 2;
+  return frames.map((f, i) => {
+    if (i > 0) {
+      const prev = frames[i - 1];
+      const dt = (f.t != null && prev.t != null) ? (f.t - prev.t) : 0.1;
+      const spd = (f.speed || 0) / 3.6;
+      heading += (f.yaw || 0) * dt;
+      x += spd * Math.cos(heading) * dt;
+      y += spd * Math.sin(heading) * dt;
     }
+    return { ...f, x, y };
+  });
+}
 
-    function formatNumber(value, digits = 1) {
-        if (value == null || Number.isNaN(Number(value))) return '—';
-        return Number(value).toFixed(digits);
+function lerp(a, b, t) {
+  if (a == null || b == null) return a ?? b;
+  return a + (b - a) * t;
+}
+
+function interp(frames, pct) {
+  if (!frames || !frames.length) return null;
+  let lo = 0, hi = frames.length - 1;
+  while (lo < hi - 1) {
+    const mid = (lo + hi) >> 1;
+    if (frames[mid].pct <= pct) lo = mid; else hi = mid;
+  }
+  const f = frames[lo], g = frames[hi];
+  if (!f) return null;
+  if (!g || f.pct === g.pct) return f;
+  const t = (pct - f.pct) / (g.pct - f.pct);
+  return {
+    pct, speed: lerp(f.speed,g.speed,t), thr: lerp(f.thr,g.thr,t),
+    brk: lerp(f.brk,g.brk,t), steer: lerp(f.steer,g.steer,t),
+    gear: f.gear, rpm: lerp(f.rpm,g.rpm,t),
+    x: lerp(f.x,g.x,t), y: lerp(f.y,g.y,t),
+  };
+}
+
+// ── Lap list ──────────────────────────────────────────────────────────────────
+function filterLaps(q) {
+  const lq = q.toLowerCase();
+  filteredLaps = q
+    ? allLaps.filter(l => (l.track_name||'').toLowerCase().includes(lq) || (l.car_name||'').toLowerCase().includes(lq))
+    : allLaps;
+  renderList();
+}
+
+function renderList() {
+  const el = document.getElementById('lapList');
+  if (!filteredLaps.length) {
+    el.innerHTML = '<div style="padding:12px 10px;color:#2a3550;font-size:.72rem">No laps found</div>';
+    return;
+  }
+  el.innerHTML = filteredLaps.map(lap => {
+    const isA = lapA?.id === lap.id, isB = lapB?.id === lap.id;
+    const badge = isA
+      ? `<span class="lbadge ba">A</span><span class="lx" onclick="clearLap('a');event.stopPropagation()">×</span>`
+      : isB
+      ? `<span class="lbadge bb">B</span><span class="lx" onclick="clearLap('b');event.stopPropagation()">×</span>`
+      : '';
+    return `<div class="li${isA?' la':isB?' lb':''}" onclick="clickLap(${lap.id})">
+      ${badge}
+      <div class="lt">${lap.track_name||'—'}</div>
+      <div class="lc">${lap.car_name||''}</div>
+      <div class="lv">${fmtTime(lap.lap_time)}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── Tab ───────────────────────────────────────────────────────────────────────
+function setTab(t) {
+  activeTab = t;
+  document.getElementById('tabA').className = 'ltab' + (t === 'a' ? ' act-a' : '');
+  document.getElementById('tabB').className = 'ltab' + (t === 'b' ? ' act-b' : '');
+}
+
+// ── Select lap ────────────────────────────────────────────────────────────────
+async function clickLap(id) {
+  const meta = allLaps.find(l => l.id === id);
+  if (!meta) return;
+
+  if (activeTab === 'a') { lapA = meta; telA = null; }
+  else                   { lapB = meta; telB = null; }
+
+  updateHeader();
+  renderList();
+  document.getElementById('emptyHint').style.display = 'none';
+  document.getElementById('mapEmpty').style.display = 'none';
+
+  const tel = await loadTel(id);
+  if (activeTab === 'a') { telA = tel; if (!lapB) setTab('b'); }
+  else                    { telB = tel; }
+
+  updateStats();
+  drawAll();
+}
+
+async function loadTel(id) {
+  try {
+    const data = await apiFetch(`/api/telemetry/laps/${id}/telemetry`);
+    return normFrames(Array.isArray(data.telemetry) ? data.telemetry : []);
+  } catch { return []; }
+}
+
+// ── Header ────────────────────────────────────────────────────────────────────
+function updateHeader() {
+  const lap = lapA || lapB;
+  document.getElementById('topTrack').textContent = lap?.track_name || '—';
+  document.getElementById('topCar').textContent   = lap?.car_name   || '';
+
+  const tabA = document.getElementById('tabA');
+  const tabB = document.getElementById('tabB');
+  if (lapA) {
+    tabA.classList.add('has-lap');
+    document.getElementById('selATime').textContent = fmtTime(lapA.lap_time);
+  } else {
+    tabA.classList.remove('has-lap');
+  }
+  if (lapB) {
+    tabB.classList.add('has-lap');
+    document.getElementById('selBTime').textContent = fmtTime(lapB.lap_time);
+  } else {
+    tabB.classList.remove('has-lap');
+  }
+}
+
+function clearLap(side) {
+  if (side === 'a') { lapA = null; telA = null; }
+  else              { lapB = null; telB = null; }
+  updateHeader();
+  renderList();
+  updateStats();
+  drawAll();
+  if (!lapA && !lapB) {
+    document.getElementById('emptyHint').style.display = 'flex';
+    document.getElementById('mapEmpty').style.display = 'flex';
+    document.getElementById('mapEmpty').textContent = 'Select a lap';
+  }
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+function updateStats() {
+  const tel = telA || telB;
+  const lap = lapA || lapB;
+  if (!tel || !tel.length) {
+    ['sv0','sv1','sv2','sv3','sv4','sv5','sv6','sv7'].forEach(id => document.getElementById(id).textContent='—');
+    return;
+  }
+
+  const speeds = tel.map(f => f.speed).filter(v => v != null);
+  const rpms   = tel.map(f => f.rpm).filter(v => v != null);
+  const thrs   = tel.map(f => f.thr).filter(v => v != null);
+
+  const maxSpd  = speeds.length ? Math.max(...speeds) : 0;
+  const avgSpd  = speeds.length ? speeds.reduce((a,b)=>a+b,0)/speeds.length : 0;
+  const maxRpm  = rpms.length   ? Math.max(...rpms) : 0;
+  const fullThr = thrs.length   ? thrs.filter(t=>t>0.95).length/thrs.length*100 : 0;
+
+  let brakeZones = 0, inBrk = false;
+  for (const f of tel) {
+    if ((f.brk||0) > .1) { if (!inBrk) { brakeZones++; inBrk=true; } } else inBrk=false;
+  }
+  let lifts = 0, inLift = false;
+  for (const f of tel) {
+    const lifting = (f.thr||0)<.5 && (f.brk||0)<.05;
+    if (lifting) { if (!inLift) { lifts++; inLift=true; } } else inLift=false;
+  }
+
+  document.getElementById('sv0').textContent = fullThr.toFixed(1) + '%';
+  document.getElementById('sv1').textContent = maxSpd.toFixed(0);
+  document.getElementById('sv2').textContent = avgSpd.toFixed(0);
+  document.getElementById('sv3').textContent = brakeZones;
+  document.getElementById('sv4').textContent = lifts;
+  document.getElementById('sv5').textContent = '—';
+  document.getElementById('sv6').textContent = maxRpm > 0 ? maxRpm.toFixed(0) : '—';
+  document.getElementById('sv7').textContent = fmtTime(lap?.lap_time);
+}
+
+// ── Canvas helpers ────────────────────────────────────────────────────────────
+function sizeCanvas(canvas, panelEl) {
+  const dpr  = window.devicePixelRatio || 1;
+  const rect = (panelEl || canvas.parentElement).getBoundingClientRect();
+  const w = Math.round(rect.width * dpr), h = Math.round(rect.height * dpr);
+  if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+  return { ctx: canvas.getContext('2d'), w, h, dpr };
+}
+
+function pctX(pct, w) {
+  return ((pct - zoomStart) / (zoomEnd - zoomStart)) * w;
+}
+
+function drawCursor(ctx, w, h, dpr, x) {
+  ctx.save();
+  ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h);
+  ctx.strokeStyle = 'rgba(255,255,255,.22)'; ctx.lineWidth = dpr;
+  ctx.setLineDash([3*dpr, 3*dpr]); ctx.stroke(); ctx.setLineDash([]);
+  ctx.restore();
+}
+
+// ── Track map ──────────────────────────────────────────────────────────────────
+function drawMap() {
+  const { ctx, w, h, dpr } = sizeCanvas(document.getElementById('cvMap'), document.getElementById('mapPanel'));
+  ctx.clearRect(0, 0, w, h);
+
+  const frames = telA || telB;
+  if (!frames || !frames.length) return;
+
+  let fxy = frames.filter(f => f.x != null && f.y != null);
+  if (!fxy.length) {
+    const built = buildXYFromYaw(frames);
+    fxy = built.filter(f => f.x != null && f.y != null);
+  }
+  if (!fxy.length) {
+    document.getElementById('mapEmpty').style.display = 'flex';
+    document.getElementById('mapEmpty').textContent = 'No position data';
+    return;
+  }
+  document.getElementById('mapEmpty').style.display = 'none';
+
+  const xs = fxy.map(f=>f.x), ys = fxy.map(f=>f.y);
+  const minX=Math.min(...xs), maxX=Math.max(...xs);
+  const minY=Math.min(...ys), maxY=Math.max(...ys);
+  const rX=maxX-minX||1, rY=maxY-minY||1;
+  const pad = 0.09;
+  const scale = Math.min(w*(1-2*pad)/rX, h*(1-2*pad)/rY);
+  const offX = (w - rX*scale)/2 - minX*scale;
+  const offY = (h + rY*scale)/2 + minY*scale; // flip Y axis
+  const toX = x =>  x*scale + offX;
+  const toY = y => -y*scale + offY;
+
+  // Outline
+  ctx.beginPath();
+  let mv = true;
+  for (const f of fxy) {
+    if (mv) { ctx.moveTo(toX(f.x), toY(f.y)); mv=false; }
+    else ctx.lineTo(toX(f.x), toY(f.y));
+  }
+  ctx.strokeStyle='rgba(255,255,255,.09)'; ctx.lineWidth=5*dpr; ctx.lineJoin='round'; ctx.stroke();
+
+  // Throttle/brake overlay
+  for (let i=1; i<fxy.length; i++) {
+    const f=fxy[i], p=fxy[i-1];
+    const t=f.thr||0, b=f.brk||0;
+    ctx.beginPath(); ctx.moveTo(toX(p.x),toY(p.y)); ctx.lineTo(toX(f.x),toY(f.y));
+    ctx.strokeStyle = b>.05 ? `rgba(255,51,68,${Math.min(.95,.35+b*.7)})`
+                   : t>.7  ? `rgba(0,220,80,${Math.min(.9,.35+t*.5)})`
+                            : 'rgba(255,193,7,.45)';
+    ctx.lineWidth = 2.5*dpr; ctx.stroke();
+  }
+
+  // Cursor dot + gear overlay
+  if (cursorPct != null) {
+    const f = interp(telA||telB, cursorPct);
+    if (f && f.x != null) {
+      ctx.beginPath(); ctx.arc(toX(f.x), toY(f.y), 4*dpr, 0, Math.PI*2);
+      ctx.fillStyle='#fff'; ctx.fill();
     }
-
-    function escapeHtml(value) {
-        return String(value)
-            .replaceAll('&', '&amp;')
-            .replaceAll('<', '&lt;')
-            .replaceAll('>', '&gt;')
-            .replaceAll('"', '&quot;')
-            .replaceAll("'", '&#039;');
+    if (f?.gear != null) {
+      document.getElementById('gearOv').textContent = f.gear;
+      document.getElementById('sv5').textContent = f.gear;
     }
+  }
+}
 
-    function formatDate(value) {
-        if (!value) return '—';
-        const date = new Date(value);
-        if (Number.isNaN(date.getTime())) return value;
-        return date.toLocaleString();
+// ── Speed ──────────────────────────────────────────────────────────────────────
+function drawSpeed() {
+  const { ctx, w, h, dpr } = sizeCanvas(document.getElementById('cvSpeed'));
+  ctx.clearRect(0, 0, w, h);
+
+  const maxS = Math.max(...(telA||[]).map(f=>f.speed||0), ...(telB||[]).map(f=>f.speed||0), 100);
+  const ceil = Math.ceil(maxS/50)*50;
+  const toY  = v => h - (v/ceil)*h;
+
+  const draw = (frames, color, fill) => {
+    if (!frames||!frames.length) return;
+    const vis = frames.filter(f=>f.pct>=zoomStart-.005&&f.pct<=zoomEnd+.005);
+    if (vis.length < 2) return;
+    ctx.beginPath(); let mv=true;
+    for (const f of vis) {
+      if (f.speed==null){mv=true;continue;}
+      const x=pctX(f.pct,w), y=toY(f.speed);
+      if(mv){ctx.moveTo(x,y);mv=false;}else ctx.lineTo(x,y);
     }
-
-    function setStatus(message, type = 'info') {
-        const el = document.getElementById('statusMessage');
-        el.textContent = message;
-        el.className = `status ${type}`;
+    ctx.strokeStyle=color; ctx.lineWidth=1.5*dpr; ctx.lineJoin='round'; ctx.stroke();
+    if (fill) {
+      ctx.lineTo(pctX(vis[vis.length-1].pct,w),h);
+      ctx.lineTo(pctX(vis[0].pct,w),h);
+      ctx.closePath(); ctx.fillStyle=fill; ctx.fill();
     }
+  };
 
-    // ── Filters ────────────────────────────────────────────────────────────────
+  draw(telA,'#2196f3','rgba(33,150,243,.1)');
+  draw(telB,'#ff9800','rgba(255,152,0,.08)');
 
-    function getFilters() {
-        return {
-            track_id:   document.getElementById('trackFilter')?.value?.trim()   || '',
-            car_id:     document.getElementById('carFilter')?.value?.trim()     || '',
-            session_id: document.getElementById('sessionFilter')?.value?.trim() || '',
-            valid:      document.getElementById('validFilter')?.value           || '',
-            limit:      document.getElementById('limitFilter')?.value           || '100',
-        };
+  if (cursorPct!=null&&cursorPct>=zoomStart&&cursorPct<=zoomEnd) {
+    drawCursor(ctx,w,h,dpr,pctX(cursorPct,w));
+    const f = interp(telA,cursorPct)||interp(telB,cursorPct);
+    if (f?.speed!=null) document.getElementById('vSpeed').textContent=`kph ${f.speed.toFixed(0)}`;
+  }
+}
+
+// ── Throttle / Brake ──────────────────────────────────────────────────────────
+function drawTB() {
+  const { ctx, w, h, dpr } = sizeCanvas(document.getElementById('cvTB'));
+  ctx.clearRect(0, 0, w, h);
+  const mid = h/2;
+
+  const drawCh = (frames, getter, base, scaleH, line, fill) => {
+    if (!frames||!frames.length) return;
+    const vis=frames.filter(f=>f.pct>=zoomStart-.005&&f.pct<=zoomEnd+.005);
+    if (!vis.length) return;
+    ctx.beginPath(); ctx.moveTo(pctX(vis[0].pct,w), base);
+    for (const f of vis) ctx.lineTo(pctX(f.pct,w), base-(getter(f)||0)*scaleH);
+    ctx.lineTo(pctX(vis[vis.length-1].pct,w), base);
+    ctx.closePath(); ctx.fillStyle=fill; ctx.fill();
+    ctx.beginPath(); let mv=true;
+    for (const f of vis) {
+      const x=pctX(f.pct,w), y=base-(getter(f)||0)*scaleH;
+      if(mv){ctx.moveTo(x,y);mv=false;}else ctx.lineTo(x,y);
     }
+    ctx.strokeStyle=line; ctx.lineWidth=dpr; ctx.stroke();
+  };
 
-    // ── Data loading ───────────────────────────────────────────────────────────
+  drawCh(telA, f=>f.thr, mid, mid*.96, '#00cc55', 'rgba(0,204,85,.3)');
+  drawCh(telA, f=>f.brk, mid, mid*.96, '#ff3344', 'rgba(255,51,68,.35)');
+  drawCh(telB, f=>f.thr, mid, mid*.96, 'rgba(255,152,0,.7)', 'rgba(255,152,0,.12)');
 
-    async function loadLaps() {
-        const filters = getFilters();
-        const params  = new URLSearchParams();
-        Object.entries(filters).forEach(([k, v]) => { if (v !== '') params.set(k, v); });
+  ctx.beginPath(); ctx.moveTo(0,mid); ctx.lineTo(w,mid);
+  ctx.strokeStyle='rgba(255,255,255,.05)'; ctx.lineWidth=dpr; ctx.stroke();
 
-        const res = await fetch(`/api/analysis/laps?${params.toString()}`);
-        if (res.status === 401) { window.location.href = '/'; return []; }
-        if (!res.ok) throw new Error(`Failed to load laps: ${res.status}`);
-        const data = await res.json();
-        return data.laps || [];
+  if (cursorPct!=null&&cursorPct>=zoomStart&&cursorPct<=zoomEnd) {
+    drawCursor(ctx,w,h,dpr,pctX(cursorPct,w));
+    const f=interp(telA,cursorPct)||interp(telB,cursorPct);
+    if(f) document.getElementById('vTB').textContent=
+      `Thr ${(f.thr||0).toFixed(2)}  Brk ${(f.brk||0).toFixed(2)}`;
+  }
+}
+
+// ── Steering ──────────────────────────────────────────────────────────────────
+function drawSteer() {
+  const { ctx, w, h, dpr } = sizeCanvas(document.getElementById('cvSteer'));
+  ctx.clearRect(0, 0, w, h);
+
+  const maxS = Math.max(
+    ...(telA||[]).map(f=>Math.abs(f.steer||0)),
+    ...(telB||[]).map(f=>Math.abs(f.steer||0)),
+    30
+  );
+  const toY = v => h/2 - (v/maxS)*(h/2);
+
+  ctx.beginPath(); ctx.moveTo(0,h/2); ctx.lineTo(w,h/2);
+  ctx.strokeStyle='rgba(255,255,255,.05)'; ctx.lineWidth=dpr; ctx.stroke();
+
+  const draw = (frames, color) => {
+    if (!frames||!frames.length) return;
+    const vis=frames.filter(f=>f.pct>=zoomStart-.005&&f.pct<=zoomEnd+.005);
+    if (vis.length<2) return;
+    ctx.beginPath(); let mv=true;
+    for (const f of vis) {
+      if(f.steer==null){mv=true;continue;}
+      const x=pctX(f.pct,w), y=toY(f.steer);
+      if(mv){ctx.moveTo(x,y);mv=false;}else ctx.lineTo(x,y);
     }
+    ctx.strokeStyle=color; ctx.lineWidth=1.5*dpr; ctx.lineJoin='round'; ctx.stroke();
+  };
 
-    // ── Render ─────────────────────────────────────────────────────────────────
+  draw(telA,'#ffc107');
+  draw(telB,'rgba(255,152,0,.5)');
 
-    function renderLaps(laps) {
-        const tbody = document.getElementById('lapsTableBody');
-        const empty = document.getElementById('emptyState');
-        tbody.innerHTML = '';
+  if (cursorPct!=null&&cursorPct>=zoomStart&&cursorPct<=zoomEnd) {
+    drawCursor(ctx,w,h,dpr,pctX(cursorPct,w));
+    const f=interp(telA,cursorPct)||interp(telB,cursorPct);
+    if(f?.steer!=null) document.getElementById('vSteer').textContent=`${f.steer.toFixed(1)}°`;
+  }
+}
 
-        if (!laps || laps.length === 0) {
-            empty.style.display = 'block';
-            return;
-        }
-        empty.style.display = 'none';
+// ── RPM ───────────────────────────────────────────────────────────────────────
+function drawRPM() {
+  const { ctx, w, h, dpr } = sizeCanvas(document.getElementById('cvRPM'));
+  ctx.clearRect(0, 0, w, h);
 
-        for (const lap of laps) {
-            const tr  = document.createElement('tr');
-            const lapId = lap.lap_id ?? lap.id;
-            const isValid = lap.is_valid !== false;
+  const maxR = Math.max(...(telA||[]).map(f=>f.rpm||0),...(telB||[]).map(f=>f.rpm||0),1000);
+  const toY  = v => h - (v/maxR)*h;
 
-            tr.innerHTML = `
-                <td>${lapId ?? '—'}</td>
-                <td>${lap.session_id ?? '—'}</td>
-                <td>${lap.lap_number ?? '—'}</td>
-                <td class="lap-time">${formatLapTime(lap.lap_time_s ?? lap.lap_time)}</td>
-                <td><span class="badge ${isValid ? 'badge-valid' : 'badge-invalid'}">${isValid ? 'Yes' : 'No'}</span></td>
-                <td>${escapeHtml(lap.track_name || lap.track_id || '—')}</td>
-                <td>${escapeHtml(lap.car_name   || lap.car_id   || '—')}</td>
-                <td>${formatNumber(lap.avg_speed_kph,      1)}</td>
-                <td>${formatNumber(lap.max_speed_kph,      1)}</td>
-                <td>${formatNumber(lap.brake_peak,         2)}</td>
-                <td>${formatNumber(lap.throttle_full_pct,  1)}</td>
-                <td>${formatNumber(lap.smoothness_score,   2)}</td>
-                <td>${formatDate(lap.created_at)}</td>
-                <td class="actions">
-                    <button class="btn-sm btn-view"    onclick="viewTelemetry(${JSON.stringify(lapId)})">Telemetry</button>
-                    <button class="btn-sm btn-ref"     onclick="setReferenceLap(${JSON.stringify(lapId)})">Set Ref</button>
-                    <button class="btn-sm btn-compare" onclick="compareLap(${JSON.stringify(lapId)})">Compare</button>
-                </td>
-            `;
-            tbody.appendChild(tr);
-        }
+  const draw = (frames, color, fill) => {
+    if (!frames||!frames.length) return;
+    const vis=frames.filter(f=>f.pct>=zoomStart-.005&&f.pct<=zoomEnd+.005);
+    if (vis.length<2) return;
+    ctx.beginPath(); let mv=true;
+    for (const f of vis) {
+      if(f.rpm==null){mv=true;continue;}
+      const x=pctX(f.pct,w), y=toY(f.rpm);
+      if(mv){ctx.moveTo(x,y);mv=false;}else ctx.lineTo(x,y);
     }
-
-    // ── Actions ────────────────────────────────────────────────────────────────
-
-    function viewTelemetry(lapId) {
-        if (!lapId) return;
-        window.location.href = `/lap-telemetry.html?lap_id=${encodeURIComponent(lapId)}`;
+    ctx.strokeStyle=color; ctx.lineWidth=1.5*dpr; ctx.lineJoin='round'; ctx.stroke();
+    if (fill) {
+      ctx.lineTo(pctX(vis[vis.length-1].pct,w),h);
+      ctx.lineTo(pctX(vis[0].pct,w),h);
+      ctx.closePath(); ctx.fillStyle=fill; ctx.fill();
     }
+  };
 
-    async function setReferenceLap(lapId) {
-        if (!lapId) return;
-        setStatus('Setting reference lap…', 'info');
+  draw(telA,'#aa88ff','rgba(170,136,255,.1)');
+  draw(telB,'rgba(255,152,0,.5)',null);
 
-        try {
-            const res = await fetch(`/api/coaching/reference/${encodeURIComponent(lapId)}/activate`, {
-                method:  'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body:    '{}',
-            });
+  if (cursorPct!=null&&cursorPct>=zoomStart&&cursorPct<=zoomEnd) {
+    drawCursor(ctx,w,h,dpr,pctX(cursorPct,w));
+    const f=interp(telA,cursorPct)||interp(telB,cursorPct);
+    if(f?.rpm!=null)
+      document.getElementById('vRPM').textContent=
+        `RPM ${f.rpm.toFixed(0)}${f.gear!=null?' Gear '+f.gear:''}`;
+  }
+}
 
-            if (res.status === 404) throw new Error('Reference lap API is not available yet.');
-            if (!res.ok) {
-                const body = await res.json().catch(() => ({}));
-                throw new Error(body.error || `Failed to set reference lap (${res.status})`);
-            }
+// ── Draw all ──────────────────────────────────────────────────────────────────
+function drawAll() {
+  drawMap(); drawSpeed(); drawTB(); drawSteer(); drawRPM();
+}
 
-            await res.json().catch(() => ({}));
-            setStatus(`Reference lap set: lap ${lapId}`, 'success');
-        } catch (err) {
-            setStatus(err.message || 'Failed to set reference lap', 'error');
-        }
-    }
+// ── Cursor & zoom on traces ───────────────────────────────────────────────────
+const tracesEl = document.getElementById('traces');
 
-    function compareLap(lapId) {
-        // TODO: wire up when compare route is available
-        setStatus('Lap compare is not implemented yet.', 'info');
-    }
+function pctFromMouseX(clientX) {
+  const r = tracesEl.getBoundingClientRect();
+  const raw = zoomStart + ((clientX - r.left) / r.width) * (zoomEnd - zoomStart);
+  return Math.max(zoomStart, Math.min(zoomEnd, raw));
+}
 
-    // ── Refresh ────────────────────────────────────────────────────────────────
+tracesEl.addEventListener('mousemove', e => {
+  cursorPct = pctFromMouseX(e.clientX);
+  drawAll();
+});
+tracesEl.addEventListener('mouseleave', () => { cursorPct=null; drawAll(); });
 
-    async function refreshLaps() {
-        setStatus('Loading laps…', 'info');
-        try {
-            const laps = await loadLaps();
-            renderLaps(laps);
-            setStatus(`Loaded ${laps.length} lap${laps.length !== 1 ? 's' : ''}`, 'success');
-        } catch (err) {
-            renderLaps([]);
-            setStatus(err.message || 'Failed to load laps', 'error');
-        }
-    }
+tracesEl.addEventListener('mousedown', e => {
+  dragAnchorPct = pctFromMouseX(e.clientX);
+  dragMoved = false;
+  e.preventDefault();
+});
+tracesEl.addEventListener('mousemove', e => {
+  if (dragAnchorPct==null) return;
+  if (Math.abs(pctFromMouseX(e.clientX) - dragAnchorPct) > 0.005) dragMoved=true;
+});
+tracesEl.addEventListener('mouseup', e => {
+  if (dragAnchorPct==null) return;
+  if (dragMoved) {
+    const endPct = pctFromMouseX(e.clientX);
+    const lo = Math.max(0, Math.min(dragAnchorPct, endPct));
+    const hi = Math.min(1, Math.max(dragAnchorPct, endPct));
+    if (hi - lo > 0.01) { zoomStart=lo; zoomEnd=hi; drawAll(); }
+  }
+  dragAnchorPct=null; dragMoved=false;
+});
+tracesEl.addEventListener('dblclick', () => { zoomStart=0; zoomEnd=1; drawAll(); });
 
-    // ── Auth ───────────────────────────────────────────────────────────────────
+// ── Resize ────────────────────────────────────────────────────────────────────
+const ro = new ResizeObserver(() => drawAll());
+ro.observe(document.getElementById('mapPanel'));
+ro.observe(tracesEl);
 
-    async function logout() {
-        await fetch('/api/logout', { method: 'POST' }).catch(() => {});
-        window.location.href = '/';
-    }
-
-    // ── Init ───────────────────────────────────────────────────────────────────
-
-    document.addEventListener('DOMContentLoaded', () => {
-        document.getElementById('refreshButton')?.addEventListener('click', refreshLaps);
-        document.getElementById('filterForm')?.addEventListener('submit', (e) => {
-            e.preventDefault();
-            refreshLaps();
-        });
-        refreshLaps();
-    });
+init();
 </script>
 </body>
 </html>

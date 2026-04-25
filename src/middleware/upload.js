@@ -41,12 +41,12 @@ const storage = multer.diskStorage({
 // File filter
 const fileFilter = (req, file, cb) => {
   const ext = path.extname(file.originalname).toLowerCase();
-  const allowedExtensions = ['.ibt', '.blap', '.olap'];
+  const allowedExtensions = ['.ibt', '.blap', '.olap', '.json', '.csv'];
   
   if (allowedExtensions.includes(ext)) {
     cb(null, true);
   } else {
-    cb(new Error('Invalid file type. Only .ibt, .blap, and .olap files are allowed.'));
+    cb(new Error('Invalid file type. Only .ibt, .blap, .olap, .json, and .csv files are allowed.'));
   }
 };
 

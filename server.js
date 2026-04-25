@@ -44,6 +44,7 @@ app.use(cors({
 app.use('/api/iracing/telemetry', express.raw({ type: '*/*', limit: '2mb' }));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+
 app.use(express.static('public'));
 
 // Session configuration (existing auth system)
@@ -99,13 +100,6 @@ app.get('/settings', requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'settings.html'));
 });
 
-app.get('/laps', requireAuth, (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'lap-analysis.html'));
-});
-
-app.get('/laps.html', requireAuth, (req, res) => {
-  res.redirect('/laps');
-});
 
 app.post('/api/signup', async (req, res) => {
   const { email, password, name, username } = req.body;
@@ -276,7 +270,6 @@ app.use('/api/telemetry', attachUserId);
 app.use('/api/analysis', attachUserId);
 app.use('/api/library', attachUserId);
 app.use('/api/assistant', attachUserId);
-app.use('/api/coaching', attachUserId);
 
 // Mount routes
 app.use('/api/telemetry', telemetryRoutes);
@@ -287,7 +280,7 @@ app.use('/api/team', teamRoutes);
 app.use('/api/teams', teamsRoutes);
 app.use('/api/races', racesRoutes);
 app.use('/api/iracing', iracingRoutes);
-app.use('/api/coaching', coachingRoutes);
+app.use('/api/coaching', attachUserId, coachingRoutes);
 
 // Serve uploaded files (protected)
 app.use('/uploads', requireAuth, express.static(path.join(__dirname, 'uploads')));

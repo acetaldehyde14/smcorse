@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useEffect, useCallback } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { telemetry as telApi } from '@/lib/api';
@@ -9,9 +9,9 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 
 // ── Constants ─────────────────────────────────────────────────────
-const WINDOW_S    = 30;   // rolling buffer: 30 seconds
-const POLL_FRAMES = 500;  // ms between frame polls
-const POLL_SUMMARY = 3000;
+const LIVE_WINDOW_S = 30;   // rolling buffer for live sessions
+const POLL_FRAMES   = 500;  // ms between frame polls
+const POLL_SUMMARY  = 3000;
 
 // ── Canvas chart helper ───────────────────────────────────────────
 
@@ -125,22 +125,26 @@ export default function LiveSessionPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const sid = parseInt(sessionId ?? '0');
 
-  const [summary, setSummary]   = useState<LiveSessionSummary | null>(null);
-  const [buffer, setBuffer]     = useState<LiveFrame[]>([]);
-  const [connected, setConnected] = useState(false);
-  const latestTimeRef = useRef(0);
+  const [summary, setSummary]     = useState<LiveSessionSummary | null>(null);
+  const [buffer, setBuffer]       = useState<LiveFrame[]>([]);
+  const [loadState, setLoadState] = useState<'loading' | 'streaming' | 'done' | 'error'>('loading');
+
+  const latestTimeRef    = useRef(0);
+  const isOpenRef        = useRef<boolean | null>(null); // null = unknown
+  const allFramesDoneRef = useRef(false);
 
   // Canvas refs
   const cvSpeed = useRef<HTMLCanvasElement>(null);
   const cvTB    = useRef<HTMLCanvasElement>(null);
   const cvSteer = useRef<HTMLCanvasElement>(null);
 
-  // Poll summary
+  // Poll summary — sets isOpenRef so frames polling can use it
   useEffect(() => {
     const poll = async () => {
       try {
         const s = await telApi.liveSummary(sid);
         setSummary(s);
+        isOpenRef.current = s.status === 'open';
       } catch { /* session not found or offline */ }
     };
     poll();
@@ -148,30 +152,54 @@ export default function LiveSessionPage() {
     return () => clearInterval(iv);
   }, [sid]);
 
-  // Poll frames
+  // Poll frames — adapts behaviour for live vs. past sessions
   useEffect(() => {
+    allFramesDoneRef.current = false;
+    latestTimeRef.current    = 0;
+    setBuffer([]);
+    setLoadState('loading');
+
     const poll = async () => {
+      if (allFramesDoneRef.current) return;
       try {
-        const { frames } = await telApi.liveFrames(sid, latestTimeRef.current, 300);
-        if (!frames.length) return;
-        setConnected(true);
+        const { frames } = await telApi.liveFrames(sid, latestTimeRef.current, 500);
+
+        if (!frames.length) {
+          // No new frames. For ended sessions this means we have everything.
+          if (isOpenRef.current === false) {
+            allFramesDoneRef.current = true;
+            setLoadState('done');
+          }
+          return;
+        }
+
+        setLoadState(isOpenRef.current === false ? 'loading' : 'streaming');
         latestTimeRef.current = Number(frames[frames.length - 1].session_time);
+
+        const newFrames: LiveFrame[] = frames.map((f: any) => ({
+          ...f,
+          session_time: Number(f.session_time),
+          speed_kph:    f.speed_kph    != null ? Number(f.speed_kph)    : null,
+          throttle:     f.throttle     != null ? Number(f.throttle)     : null,
+          brake:        f.brake        != null ? Number(f.brake)        : null,
+          steering_deg: f.steering_deg != null ? Number(f.steering_deg) : null,
+        }));
+
         setBuffer(prev => {
-          const next = [...prev, ...frames.map(f => ({
-            ...f,
-            session_time: Number(f.session_time),
-            speed_kph:    f.speed_kph    != null ? Number(f.speed_kph)    : null,
-            throttle:     f.throttle     != null ? Number(f.throttle)     : null,
-            brake:        f.brake        != null ? Number(f.brake)        : null,
-            steering_deg: f.steering_deg != null ? Number(f.steering_deg) : null,
-          }))];
-          // Keep last WINDOW_S seconds
-          const cutoff = latestTimeRef.current - WINDOW_S;
-          return next.filter(f => f.session_time >= cutoff);
+          const next = [...prev, ...newFrames];
+          // For ended sessions, keep all frames; for live sessions, rolling window
+          if (isOpenRef.current === false) return next;
+          const cutoff = latestTimeRef.current - LIVE_WINDOW_S;
+          return next.filter((f: LiveFrame) => f.session_time >= cutoff);
         });
-      } catch { setConnected(false); }
+      } catch {
+        setLoadState('error');
+      }
     };
+
     poll();
+    // Use faster interval initially; slow down after first poll settles.
+    // For simplicity, always use the faster live interval — React batching handles it.
     const iv = setInterval(poll, POLL_FRAMES);
     return () => clearInterval(iv);
   }, [sid]);
@@ -193,12 +221,20 @@ export default function LiveSessionPage() {
   const gearLabel = (g: number | null | undefined) =>
     g == null ? '—' : g === 0 ? 'N' : g === -1 ? 'R' : String(g);
 
+  const statusDot = () => {
+    if (loadState === 'streaming') return { cls: 'bg-green-400 animate-pulse', label: 'Live', color: 'text-green-400' };
+    if (loadState === 'loading')   return { cls: 'bg-yellow-400 animate-pulse', label: 'Loading…', color: 'text-yellow-400' };
+    if (loadState === 'done')      return { cls: 'bg-blue-400', label: `${buffer.length.toLocaleString()} frames`, color: 'text-blue-400' };
+    return { cls: 'bg-dark-muted', label: 'Waiting…', color: 'text-dark-muted' };
+  };
+  const dot = statusDot();
+
   return (
     <div>
       {/* Header */}
       <div className="flex items-center gap-4 mb-6">
-        <Link href="/laps" className="text-dark-muted hover:text-white transition-colors text-sm flex items-center gap-1">
-          ← Laps
+        <Link href="/live" className="text-dark-muted hover:text-white transition-colors text-sm flex items-center gap-1">
+          ← Live Tracker
         </Link>
         <div className="flex-1">
           <div className="flex items-center gap-3 flex-wrap">
@@ -206,9 +242,9 @@ export default function LiveSessionPage() {
               {summary?.session.track_name ?? `Session ${sid}`}
             </h1>
             <Badge variant={isOpen ? 'active' : 'inactive'}>{isOpen ? 'LIVE' : 'Ended'}</Badge>
-            <div className={`flex items-center gap-1.5 text-xs font-body ${connected ? 'text-green-400' : 'text-dark-muted'}`}>
-              <span className={`w-2 h-2 rounded-full ${connected ? 'bg-green-400 animate-pulse' : 'bg-dark-muted'}`} />
-              {connected ? 'Streaming' : 'Waiting…'}
+            <div className={`flex items-center gap-1.5 text-xs font-body ${dot.color}`}>
+              <span className={`w-2 h-2 rounded-full ${dot.cls}`} />
+              {dot.label}
             </div>
           </div>
           {summary?.session.car_name && (
@@ -223,7 +259,7 @@ export default function LiveSessionPage() {
         {/* Left — charts */}
         <div className="lg:col-span-2 flex flex-col gap-4">
           <ChartPanel
-            label="Speed"
+            label={isOpen ? 'Speed (last 30 s)' : 'Speed (full session)'}
             value={latest?.speed_kph != null ? Math.round(latest.speed_kph).toString() : '—'}
             unit="kph"
             canvasRef={cvSpeed}
@@ -239,7 +275,7 @@ export default function LiveSessionPage() {
           />
           <ChartPanel
             label="Steering"
-            value={latest?.speed_kph != null && buffer.length > 0
+            value={buffer.length > 0
               ? `${(buffer[buffer.length - 1]?.steering_deg ?? 0).toFixed(1)}°`
               : '—'}
             canvasRef={cvSteer}
@@ -274,7 +310,7 @@ export default function LiveSessionPage() {
                 <span className="text-purple-400 font-mono font-semibold">{fmtLapTime(summary?.best_lap_time)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-dark-muted">Frames received</span>
+                <span className="text-dark-muted">Frames</span>
                 <span className="text-white">{summary?.frame_count?.toLocaleString() ?? '—'}</span>
               </div>
               <div className="flex justify-between">
@@ -288,7 +324,7 @@ export default function LiveSessionPage() {
           {(summary?.laps?.length ?? 0) > 0 && (
             <Card header={`Laps (${summary!.laps.length})`} padding={false}>
               <div className="max-h-64 overflow-y-auto divide-y divide-dark-border">
-                {[...summary!.laps].map((lap, i) => {
+                {[...summary!.laps].reverse().map((lap, i) => {
                   const isBest = lap.lap_time === summary!.best_lap_time;
                   return (
                     <div key={i} className="flex items-center justify-between px-4 py-2 hover:bg-white/2">
@@ -304,11 +340,11 @@ export default function LiveSessionPage() {
             </Card>
           )}
 
-          {!connected && !summary && (
+          {loadState === 'error' && !summary && (
             <div className="text-center py-12 text-dark-muted">
               <p className="text-4xl mb-3">📡</p>
-              <p className="font-heading font-semibold text-white">No data yet</p>
-              <p className="text-sm mt-1">Waiting for the desktop client to stream frames</p>
+              <p className="font-heading font-semibold text-white">Session not found</p>
+              <p className="text-sm mt-1">This session may have been deleted or you don't have access.</p>
             </div>
           )}
         </div>

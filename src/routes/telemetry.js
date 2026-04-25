@@ -347,6 +347,63 @@ router.post('/upload',
 // ── Live session routes ───────────────────────────────────────────
 
 // POST /api/telemetry/live/session/start
+async function resolveLiveSession(sessionId, userId) {
+  const canonical = await query(
+    `SELECT id, track_name, car_name, session_type, ingest_mode, status, created_at, ended_at
+     FROM sessions
+     WHERE id = $1 AND user_id = $2
+     LIMIT 1`,
+    [sessionId, userId]
+  );
+  if (canonical.rowCount > 0) {
+    return { source: 'sessions', session: canonical.rows[0] };
+  }
+
+  const fallback = await query(
+    `SELECT id, track_name, car_name, session_type, started_at, ended_at, created_at
+     FROM telemetry_sessions
+     WHERE id = $1 AND user_id = $2
+     LIMIT 1`,
+    [sessionId, userId]
+  );
+  if (fallback.rowCount > 0) {
+    const row = fallback.rows[0];
+    return {
+      source: 'telemetry_sessions',
+      session: {
+        id: row.id,
+        track_name: row.track_name,
+        car_name: row.car_name,
+        session_type: row.session_type,
+        ingest_mode: 'live',
+        status: row.ended_at ? 'closed' : 'open',
+        created_at: row.started_at || row.created_at,
+        ended_at: row.ended_at || null
+      }
+    };
+  }
+
+  return null;
+}
+
+function parseBatchFrame(frame) {
+  const toNum = (v) => (v == null || Number.isNaN(Number(v)) ? null : Number(v));
+  return {
+    session_time: toNum(frame?.session_time ?? frame?.t),
+    lap_number: frame?.lap_number ?? frame?.lap ?? null,
+    lap_dist_pct: toNum(frame?.lap_dist_pct ?? frame?.ldp),
+    speed_kph: toNum(frame?.speed_kph ?? frame?.spd),
+    throttle: toNum(frame?.throttle ?? frame?.thr),
+    brake: toNum(frame?.brake ?? frame?.brk),
+    steering_deg: toNum(frame?.steering_deg ?? frame?.steer),
+    gear: frame?.gear ?? null,
+    rpm: frame?.rpm ?? null,
+    lat_accel: toNum(frame?.lat_accel ?? frame?.glat),
+    long_accel: toNum(frame?.long_accel ?? frame?.glon ?? frame?.long),
+    yaw_rate: toNum(frame?.yaw_rate ?? frame?.yaw)
+  };
+}
+
 router.post('/live/session/start', authenticateToken, async (req, res) => {
   const {
     sim_session_uid, sub_session_id, track_id, track_name,
@@ -468,7 +525,8 @@ router.post('/live/batch', authenticateToken, async (req, res) => {
 
 // POST /api/telemetry/live/lap-complete — record a completed lap in telemetry_laps
 router.post('/live/lap-complete', authenticateToken, async (req, res) => {
-  const { session_id, lap_number, lap_time_s, is_valid, incidents } = req.body;
+  const { session_id, lap_number, lap_time_s, lap_time, is_valid, incidents } = req.body;
+  const normalizedLapTime = lap_time_s ?? lap_time ?? null;
 
   if (!session_id || lap_number == null) {
     return res.status(400).json({ error: 'session_id and lap_number required' });
@@ -488,8 +546,41 @@ router.post('/live/lap-complete', authenticateToken, async (req, res) => {
          SET lap_time_s = EXCLUDED.lap_time_s,
              is_valid   = EXCLUDED.is_valid,
              incidents  = EXCLUDED.incidents`,
-      [session_id, lap_number, lap_time_s || null, is_valid !== false, incidents || 0]
+      [session_id, lap_number, normalizedLapTime, is_valid !== false, incidents || 0]
     );
+
+    const canonicalSession = await query(
+      'SELECT id FROM sessions WHERE id = $1 AND user_id = $2 LIMIT 1',
+      [session_id, req.user.id]
+    );
+    if (canonicalSession.rowCount > 0) {
+      const existingLap = await query(
+        'SELECT id FROM laps WHERE session_id = $1 AND lap_number = $2 LIMIT 1',
+        [session_id, lap_number]
+      );
+      if (existingLap.rowCount > 0) {
+        await query(
+          `UPDATE laps SET lap_time = COALESCE($1, lap_time), is_valid = $2
+           WHERE id = $3`,
+          [normalizedLapTime, is_valid !== false, existingLap.rows[0].id]
+        );
+      } else {
+        await query(
+          `INSERT INTO laps (session_id, user_id, lap_number, lap_time, is_valid, created_at)
+           VALUES ($1, $2, $3, $4, $5, NOW())`,
+          [session_id, req.user.id, lap_number, normalizedLapTime, is_valid !== false]
+        );
+      }
+    }
+
+    if (normalizedLapTime != null) {
+      await query(
+        `UPDATE telemetry_sessions
+         SET best_lap_s = LEAST(COALESCE(best_lap_s, $2), $2)
+         WHERE id = $1 AND user_id = $3`,
+        [session_id, Number(normalizedLapTime), req.user.id]
+      );
+    }
 
     res.json({ ok: true });
   } catch (err) {
@@ -607,20 +698,25 @@ router.post('/live/session/end', authenticateToken, async (req, res) => {
 // GET /api/telemetry/live/session/:id/status
 router.get('/live/session/:id/status', authenticateToken, async (req, res) => {
   try {
-    const sessResult = await query(
-      `SELECT id, track_name, car_name, session_type, ingest_mode, status, created_at, ended_at
-       FROM sessions WHERE id = $1 AND user_id = $2`,
-      [req.params.id, req.user.id]
-    );
-    if (!sessResult.rows.length) return res.status(404).json({ error: 'Session not found' });
+    const resolved = await resolveLiveSession(req.params.id, req.user.id);
+    if (!resolved) return res.status(404).json({ error: 'Session not found' });
 
-    const [frameCount, lapCount] = await Promise.all([
-      query('SELECT COUNT(*) FROM telemetry_frames WHERE session_id = $1', [req.params.id]),
-      query('SELECT COUNT(*) FROM laps WHERE session_id = $1', [req.params.id])
-    ]);
+    const [frameCount, lapCount] = resolved.source === 'sessions'
+      ? await Promise.all([
+          query('SELECT COUNT(*) FROM telemetry_frames WHERE session_id = $1', [req.params.id]),
+          query('SELECT COUNT(*) FROM laps WHERE session_id = $1', [req.params.id])
+        ])
+      : await Promise.all([
+          query(
+            `SELECT COALESCE(SUM(jsonb_array_length(samples)), 0)::bigint AS count
+             FROM telemetry_batches WHERE session_id = $1`,
+            [req.params.id]
+          ),
+          query('SELECT COUNT(*) FROM telemetry_laps WHERE session_id = $1', [req.params.id])
+        ]);
 
     res.json({
-      session: sessResult.rows[0],
+      session: resolved.session,
       frame_count: parseInt(frameCount.rows[0].count),
       lap_count:   parseInt(lapCount.rows[0].count)
     });
@@ -654,11 +750,34 @@ router.get('/live/active', authenticateToken, async (req, res) => {
        LIMIT 1`,
       [req.user.id]
     );
-    if (!result.rows.length) return res.json({ session_id: null, is_live: false });
-    res.json({
-      session_id:  result.rows[0].id,
-      ingest_mode: result.rows[0].ingest_mode,
-      is_live:     true
+    if (result.rows.length) {
+      return res.json({
+        session_id:  result.rows[0].id,
+        ingest_mode: result.rows[0].ingest_mode,
+        is_live:     true
+      });
+    }
+
+    const legacy = await query(
+      `SELECT ts.id
+       FROM telemetry_sessions ts
+       WHERE ts.user_id = $1
+         AND ts.ended_at IS NULL
+         AND EXISTS (
+           SELECT 1 FROM telemetry_batches tb
+           WHERE tb.session_id = ts.id
+             AND tb.created_at > NOW() - INTERVAL '120 seconds'
+           LIMIT 1
+         )
+       ORDER BY ts.started_at DESC NULLS LAST, ts.created_at DESC
+       LIMIT 1`,
+      [req.user.id]
+    );
+    if (!legacy.rows.length) return res.json({ session_id: null, is_live: false });
+    return res.json({
+      session_id: legacy.rows[0].id,
+      ingest_mode: 'live',
+      is_live: true
     });
   } catch (error) {
     console.error('live/active error:', error);
@@ -673,24 +792,38 @@ router.get('/live/session/:id/frames', authenticateToken, async (req, res) => {
     const sinceTime = parseFloat(req.query.since_session_time) || 0;
     const limit = Math.min(parseInt(req.query.limit) || 300, 1000);
 
-    const sess = await query(
-      'SELECT id FROM sessions WHERE id = $1 AND user_id = $2',
-      [req.params.id, req.user.id]
-    );
-    if (!sess.rows.length) return res.status(404).json({ error: 'Session not found' });
+    const resolved = await resolveLiveSession(req.params.id, req.user.id);
+    if (!resolved) return res.status(404).json({ error: 'Session not found' });
 
-    const result = await query(
-      `SELECT session_time, lap_number, lap_dist_pct,
-              speed_kph, throttle, brake, steering_deg, gear, rpm,
-              lat_accel, long_accel, yaw_rate
-       FROM telemetry_frames
-       WHERE session_id = $1 AND user_id = $2 AND session_time > $3
-       ORDER BY session_time ASC
-       LIMIT $4`,
-      [req.params.id, req.user.id, sinceTime, limit]
-    );
-
-    const frames = result.rows;
+    let frames = [];
+    if (resolved.source === 'sessions') {
+      const result = await query(
+        `SELECT session_time, lap_number, lap_dist_pct,
+                speed_kph, throttle, brake, steering_deg, gear, rpm,
+                lat_accel, long_accel, yaw_rate
+         FROM telemetry_frames
+         WHERE session_id = $1 AND user_id = $2 AND session_time > $3
+         ORDER BY session_time ASC
+         LIMIT $4`,
+        [req.params.id, req.user.id, sinceTime, limit]
+      );
+      frames = result.rows;
+    } else {
+      const batches = await query(
+        `SELECT samples
+         FROM telemetry_batches
+         WHERE session_id = $1
+         ORDER BY created_at DESC
+         LIMIT 8`,
+        [req.params.id]
+      );
+      frames = batches.rows
+        .flatMap((r) => (Array.isArray(r.samples) ? r.samples : []))
+        .map(parseBatchFrame)
+        .filter((f) => f.session_time != null && f.session_time > sinceTime)
+        .sort((a, b) => a.session_time - b.session_time)
+        .slice(-limit);
+    }
     res.json({
       session_id:          parseInt(req.params.id),
       latest_session_time: frames.length ? parseFloat(frames[frames.length - 1].session_time) : sinceTime,
@@ -706,42 +839,86 @@ router.get('/live/session/:id/frames', authenticateToken, async (req, res) => {
 // Extends /status with current lap values and lap table — used by the live graph page.
 router.get('/live/session/:id/summary', authenticateToken, async (req, res) => {
   try {
-    const sessResult = await query(
-      `SELECT id, track_name, car_name, session_type, ingest_mode, status, created_at, ended_at
-       FROM sessions WHERE id = $1 AND user_id = $2`,
-      [req.params.id, req.user.id]
+    const resolved = await resolveLiveSession(req.params.id, req.user.id);
+    if (!resolved) return res.status(404).json({ error: 'Session not found' });
+
+    let lf = null;
+    let laps = [];
+    let frameCount = 0;
+    if (resolved.source === 'sessions') {
+      const [latestFrame, lapsResult, frameCountResult] = await Promise.all([
+        query(
+          `SELECT session_time, lap_number, speed_kph, throttle, brake, gear, rpm, ts
+           FROM telemetry_frames WHERE session_id = $1 AND user_id = $2
+           ORDER BY session_time DESC LIMIT 1`,
+          [req.params.id, req.user.id]
+        ),
+        query(
+          `SELECT lap_number, lap_time FROM laps WHERE session_id = $1
+           ORDER BY lap_number ASC`,
+          [req.params.id]
+        ),
+        query('SELECT COUNT(*) FROM telemetry_frames WHERE session_id = $1', [req.params.id])
+      ]);
+      lf = latestFrame.rows[0] ?? null;
+      laps = lapsResult.rows;
+      frameCount = parseInt(frameCountResult.rows[0].count);
+    } else {
+      const [lapRows, batchRows] = await Promise.all([
+        query(
+          `SELECT lap_number, lap_time_s AS lap_time
+           FROM telemetry_laps
+           WHERE session_id = $1
+           ORDER BY lap_number ASC`,
+          [req.params.id]
+        ),
+        query(
+          `SELECT samples
+           FROM telemetry_batches
+           WHERE session_id = $1
+           ORDER BY created_at DESC
+           LIMIT 8`,
+          [req.params.id]
+        )
+      ]);
+      laps = lapRows.rows;
+      const parsed = batchRows.rows
+        .flatMap((r) => (Array.isArray(r.samples) ? r.samples : []))
+        .map(parseBatchFrame)
+        .filter((f) => f.session_time != null)
+        .sort((a, b) => a.session_time - b.session_time);
+      frameCount = parsed.length;
+      if (parsed.length > 0) {
+        const last = parsed[parsed.length - 1];
+        lf = {
+          session_time: last.session_time,
+          lap_number: last.lap_number,
+          speed_kph: last.speed_kph,
+          throttle: last.throttle,
+          brake: last.brake,
+          gear: last.gear,
+          rpm: last.rpm,
+          ts: null
+        };
+      }
+    }
+
+    const best = laps.reduce(
+      (b, l) => (!b || Number(l.lap_time) < Number(b.lap_time)) ? l : b,
+      null
     );
-    if (!sessResult.rows.length) return res.status(404).json({ error: 'Session not found' });
-
-    const [latestFrame, lapsResult, frameCount] = await Promise.all([
-      query(
-        `SELECT session_time, lap_number, speed_kph, throttle, brake, gear, rpm, ts
-         FROM telemetry_frames WHERE session_id = $1 AND user_id = $2
-         ORDER BY session_time DESC LIMIT 1`,
-        [req.params.id, req.user.id]
-      ),
-      query(
-        `SELECT lap_number, lap_time FROM laps WHERE session_id = $1
-         ORDER BY lap_time ASC`,
-        [req.params.id]
-      ),
-      query('SELECT COUNT(*) FROM telemetry_frames WHERE session_id = $1', [req.params.id])
-    ]);
-
-    const lf = latestFrame.rows[0] ?? null;
-    const best = lapsResult.rows[0] ?? null;
 
     res.json({
-      session:             sessResult.rows[0],
-      status:              sessResult.rows[0].status,
-      frame_count:         parseInt(frameCount.rows[0].count),
+      session:             resolved.session,
+      status:              resolved.session.status,
+      frame_count:         frameCount,
       latest_session_time: lf ? parseFloat(lf.session_time) : null,
       last_frame_ts:       lf?.ts ?? null,
       current_lap:         lf?.lap_number ?? null,
       best_lap_number:     best?.lap_number ?? null,
       best_lap_time:       best?.lap_time ?? null,
-      lap_count:           lapsResult.rows.length,
-      laps:                lapsResult.rows,
+      lap_count:           laps.length,
+      laps,
       latest: lf ? {
         speed_kph: lf.speed_kph != null ? parseFloat(lf.speed_kph) : null,
         throttle:  lf.throttle  != null ? parseFloat(lf.throttle)  : null,
@@ -1040,7 +1217,7 @@ router.get('/all-laps', authenticateToken, async (req, res) => {
        FROM laps l
        JOIN sessions s ON l.session_id = s.id
        WHERE l.user_id = $1 AND l.lap_time > 0
-       ORDER BY l.lap_time ASC`,
+       ORDER BY s.created_at DESC, l.lap_number ASC`,
       [req.user.id]
     );
     res.json({ laps: result.rows });
