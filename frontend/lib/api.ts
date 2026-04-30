@@ -2,7 +2,8 @@ import type {
   User, Race, RaceState, RaceEvent, StintRosterEntry,
   Team, TeamMember, Driver, RaceCalendarEvent,
   Session, Lap, StintPlannerSession, RaceStintPlan, StintPlanAdvance, RaceLap,
-  LiveFrame, LiveSessionSummary, LapFeatures, LapChannels, AllLap
+  LiveFrame, LiveSessionSummary, LapFeatures, LapChannels, AllLap,
+  CoachingProfile, CoachingObservationsResponse
 } from './types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? '';
@@ -45,8 +46,22 @@ export const auth = {
   me: () => get<User>('/api/user'),
   login: (email: string, password: string) =>
     post<{ message: string }>('/api/login', { email, password }),
-  signup: (name: string, username: string, email: string, password: string) =>
-    post<{ message: string }>('/api/signup', { name, username, email, password }),
+  signup: (
+    name: string,
+    username: string,
+    email: string,
+    password: string,
+    discordUserId: string,
+    telegramChatId?: string
+  ) =>
+    post<{ message: string }>('/api/signup', {
+      name,
+      username,
+      email,
+      password,
+      discord_user_id: discordUserId,
+      telegram_chat_id: telegramChatId || null,
+    }),
   logout: () => post<void>('/api/logout', {}),
 };
 
@@ -79,7 +94,11 @@ export const calendar = {
 // ── Teams (multi-team management) ────────────────────────────
 export const teams = {
   list: () => get<Team[]>('/api/teams'),
-  create: (name: string, description?: string) => post<Team>('/api/teams', { name, description }),
+  create: (data: Pick<Team, 'name'> & Partial<Pick<Team, 'description' | 'discord_channel_id' | 'discord_role_id'>>) =>
+    post<Team>('/api/teams', data),
+  update: (id: number, data: Partial<Pick<Team, 'name' | 'description' | 'discord_channel_id' | 'discord_role_id'>>) =>
+    put<Team>(`/api/teams/${id}`, data),
+  testDiscord: (id: number) => post<{ ok: boolean }>(`/api/teams/${id}/test-discord`, {}),
   delete: (id: number) => del<{ ok: boolean }>(`/api/teams/${id}`),
   members: (teamId: number) => get<TeamMember[]>(`/api/teams/${teamId}/members`),
   addMember: (teamId: number, data: Partial<TeamMember> & { linked_user_id?: number }) =>
@@ -119,6 +138,16 @@ export const telemetry = {
   liveStatus:  (sessionId: number) => get<{ session: Session; frame_count: number; lap_count: number }>(`/api/telemetry/live/session/${sessionId}/status`),
   liveActive:  () => get<{ session_id: number | null; ingest_mode?: string; is_live?: boolean }>('/api/telemetry/live/active'),
   liveSessions: () => get<{ sessions: (Session & { ingest_mode: string; status: string })[] }>('/api/telemetry/sessions').then(r => r.sessions.filter((s: any) => s.ingest_mode === 'live')),
+};
+
+export const coaching = {
+  voiceManifest: () => get<{ version: number; clips: Record<string, string> }>('/api/coaching/voice/manifest'),
+  activeProfile: (trackId: string, carId: string) =>
+    get<CoachingProfile>(`/api/coaching/profile/active?track_id=${encodeURIComponent(trackId)}&car_id=${encodeURIComponent(carId)}`),
+  profileBySession: (sessionId: number) =>
+    get<CoachingProfile>(`/api/coaching/profile/by-session/${sessionId}`),
+  observations: (body: unknown) =>
+    post<CoachingObservationsResponse>('/api/coaching/observations', body),
 };
 
 // ── Stint Planner ─────────────────────────────────────────────

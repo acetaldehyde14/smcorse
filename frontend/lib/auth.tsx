@@ -9,7 +9,14 @@ interface AuthContextValue {
   user: User | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  signup: (name: string, username: string, email: string, password: string) => Promise<void>;
+  signup: (
+    name: string,
+    username: string,
+    email: string,
+    password: string,
+    discordUserId: string,
+    telegramChatId?: string
+  ) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
 }
@@ -40,8 +47,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.push('/dashboard');
   }, [refresh, router]);
 
-  const signup = useCallback(async (name: string, username: string, email: string, password: string) => {
-    await authApi.signup(name, username, email, password);
+  const signup = useCallback(async (
+    name: string,
+    username: string,
+    email: string,
+    password: string,
+    discordUserId: string,
+    telegramChatId?: string
+  ) => {
+    await authApi.signup(name, username, email, password, discordUserId, telegramChatId);
     await refresh();
     router.push('/dashboard');
   }, [refresh, router]);

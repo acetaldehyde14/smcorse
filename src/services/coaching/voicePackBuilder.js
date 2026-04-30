@@ -36,6 +36,7 @@ async function buildVoicePack({
   let assetsBuilt   = 0;
   let assetsSkipped = 0;
   const manifestCues = [];
+  const manifestClips = {};
 
   for (const cue of VOICE_CUE_CATALOG) {
     const { cue_key, default_text } = cue;
@@ -61,6 +62,7 @@ async function buildVoicePack({
               duration_ms: null,
               text: default_text,
             });
+            manifestClips[cue_key] = relPath.startsWith('/') ? relPath : `/${relPath}`;
             continue;
           } catch {
             // File missing — re-synthesize
@@ -112,6 +114,9 @@ async function buildVoicePack({
         duration_ms: result.durationMs,
         text: default_text,
       });
+      manifestClips[cue_key] = result.relativePath.startsWith('/')
+        ? result.relativePath
+        : `/${result.relativePath}`;
 
       assetsBuilt++;
     } catch (err) {
@@ -126,6 +131,7 @@ async function buildVoicePack({
     language_code: languageCode,
     voice_name: voiceName,
     generated_at: new Date().toISOString(),
+    clips: manifestClips,
     cues: manifestCues,
   };
 

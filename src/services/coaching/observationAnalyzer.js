@@ -10,6 +10,100 @@ const { query } = require('../../config/database');
 
 // Default track length in metres when unknown
 const DEFAULT_TRACK_LENGTH_M = 5000;
+const DISTANCE_STEPS_M = [5, 10, 15, 20, 25, 30];
+const BRAKE_PERCENT_STEPS = [5, 10, 15, 20];
+
+function nearestStep(value, steps) {
+  return steps.reduce((best, step) =>
+    Math.abs(step - value) < Math.abs(best - value) ? step : best,
+  steps[0]);
+}
+
+function buildCorrectionEvent(type, payload, zoneId) {
+  if (type === 'brake_later') {
+    const meters = nearestStep(payload.meters, DISTANCE_STEPS_M);
+    return {
+      display_text: `Brake ${meters}m later there`,
+      voice_key: null,
+      sequence: [`correction_brake_${meters}m_later`, 'there'],
+      priority: 'correction',
+      zone_id: zoneId,
+      cue_type: 'correction',
+    };
+  }
+
+  if (type === 'brake_earlier') {
+    const meters = nearestStep(payload.meters, DISTANCE_STEPS_M);
+    return {
+      display_text: `Brake ${meters}m earlier there`,
+      voice_key: null,
+      sequence: [`correction_brake_${meters}m_earlier`, 'there'],
+      priority: 'correction',
+      zone_id: zoneId,
+      cue_type: 'correction',
+    };
+  }
+
+  if (type === 'more_brake') {
+    const percent = nearestStep(payload.percent, BRAKE_PERCENT_STEPS);
+    return {
+      display_text: `Use ${percent}% more peak brake there`,
+      voice_key: null,
+      sequence: [`correction_add_about_${percent}_percent_more_brake_here`, 'there'],
+      priority: 'correction',
+      zone_id: zoneId,
+      cue_type: 'correction',
+    };
+  }
+
+  if (type === 'less_brake') {
+    const percent = nearestStep(payload.percent, BRAKE_PERCENT_STEPS);
+    return {
+      display_text: `Use ${percent}% less peak brake there`,
+      voice_key: null,
+      sequence: [`correction_use_about_${percent}_percent_less_brake_here`, 'there'],
+      priority: 'correction',
+      zone_id: zoneId,
+      cue_type: 'correction',
+    };
+  }
+
+  if (type === 'wait_longer_before_throttle') {
+    return {
+      display_text: 'Wait longer before throttle there',
+      voice_key: null,
+      sequence: ['correction_wait_longer_before_throttle_pickup', 'there'],
+      priority: 'correction',
+      zone_id: zoneId,
+      cue_type: 'correction',
+    };
+  }
+
+  if (type === 'pick_up_throttle_earlier') {
+    return {
+      display_text: 'Pick up throttle earlier there',
+      voice_key: null,
+      sequence: ['correction_pick_up_throttle_a_touch_earlier', 'there'],
+      priority: 'correction',
+      zone_id: zoneId,
+      cue_type: 'correction',
+    };
+  }
+
+  if (type === 'minimum_speed_can_be_higher_here') {
+    const kph = nearestStep(payload.kph, [3, 5, 8, 10]);
+    return {
+      display_text: `Carry ${kph} kph more minimum speed this corner`,
+      voice_key: null,
+      sequence: ['correction_minimum_speed_can_be_higher_here', 'thiscorner'],
+      priority: 'correction',
+      zone_id: zoneId,
+      cue_type: 'correction',
+    };
+  }
+
+  return null;
+}
 
 /**
  * analyzeObservation
@@ -71,6 +165,7 @@ function analyzeObservation(observation, referenceZone, trackLengthM = DEFAULT_T
   // Pick recommendation based on largest deviation
   let recommendation_key = null;
   let recommendation_payload = {};
+  let correction_event = null;
   let maxScore = 0;
 
   function consider(key, score, payload) {
@@ -78,6 +173,7 @@ function analyzeObservation(observation, referenceZone, trackLengthM = DEFAULT_T
       maxScore = Math.abs(score);
       recommendation_key = key;
       recommendation_payload = payload;
+      correction_event = buildCorrectionEvent(key, payload, observation.zone_id || null);
     }
   }
 
@@ -116,11 +212,33 @@ function analyzeObservation(observation, referenceZone, trackLengthM = DEFAULT_T
     }
   }
 
-  // Throttle reapply: positive delta means took longer (pick up earlier)
+  if (
+    observation.observed_throttle_reapply_lap_dist != null &&
+    referenceZone.target_throttle_reapply_pct != null
+  ) {
+    const deltaThrottleReapplyM =
+      (observation.observed_throttle_reapply_lap_dist - referenceZone.target_throttle_reapply_pct) *
+      trackLengthM;
+    if (deltaThrottleReapplyM < -8) {
+      consider('wait_longer_before_throttle', -deltaThrottleReapplyM, {
+        meters: Math.round(-deltaThrottleReapplyM),
+      });
+    } else if (deltaThrottleReapplyM > 8) {
+      consider('pick_up_throttle_earlier', deltaThrottleReapplyM, {
+        meters: Math.round(deltaThrottleReapplyM),
+      });
+    }
+  }
+
+  // Throttle reapply: positive duration delta means took longer (pick up earlier)
   if (deltas.delta_throttle_reapply_s != null) {
     if (deltas.delta_throttle_reapply_s > 0.15) {
       consider('pick_up_throttle_earlier', deltas.delta_throttle_reapply_s * 10, {
         tenths: Math.round(deltas.delta_throttle_reapply_s * 10),
+      });
+    } else if (deltas.delta_throttle_reapply_s < -0.15) {
+      consider('wait_longer_before_throttle', -deltas.delta_throttle_reapply_s * 10, {
+        tenths: Math.round(-deltas.delta_throttle_reapply_s * 10),
       });
     }
   }
@@ -131,6 +249,7 @@ function analyzeObservation(observation, referenceZone, trackLengthM = DEFAULT_T
     recommendation_payload: Object.keys(recommendation_payload).length
       ? recommendation_payload
       : null,
+    correction_event,
   };
 }
 

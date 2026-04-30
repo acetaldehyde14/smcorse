@@ -140,6 +140,116 @@ async function sendDiscordWebhook(webhookUrl, payload) {
   }
 }
 
+async function sendDiscordTeamChannel(teamId, payload = {}) {
+  if (!discordBot || !discordBot.isReady()) {
+    console.warn(`[Discord Team Channel] Bot not ready for team ${teamId || 'unknown'}`);
+    return false;
+  }
+  if (!teamId) {
+    console.warn('[Discord Team Channel] Missing teamId');
+    return false;
+  }
+
+  let team;
+  try {
+    const result = await query(
+      'SELECT id, name, discord_channel_id, discord_role_id FROM teams WHERE id = $1',
+      [teamId]
+    );
+    team = result.rows[0];
+  } catch (e) {
+    console.error(`[Discord Team Channel] Failed team lookup for team ${teamId}:`, e.message);
+    return false;
+  }
+
+  if (!team) {
+    console.warn(`[Discord Team Channel] Missing team ${teamId}`);
+    return false;
+  }
+  if (!team.discord_channel_id) {
+    console.log(`[Discord Team Channel] No discord_channel_id configured for team ${teamId} (${team.name})`);
+    return false;
+  }
+
+  let channel;
+  try {
+    channel = await discordBot.channels.fetch(team.discord_channel_id);
+  } catch (e) {
+    console.error(`[Discord Team Channel] Failed fetch for channel ${team.discord_channel_id} team ${teamId}:`, e.message);
+    return false;
+  }
+
+  if (!channel) {
+    console.warn(`[Discord Team Channel] Missing channel ${team.discord_channel_id} for team ${teamId}`);
+    return false;
+  }
+  if (typeof channel.isTextBased !== 'function' || !channel.isTextBased()) {
+    console.warn(`[Discord Team Channel] Channel ${team.discord_channel_id} for team ${teamId} is not text-based`);
+    return false;
+  }
+
+  const roleId = team.discord_role_id || null;
+  const contentParts = [];
+  if (roleId) contentParts.push(`<@&${roleId}>`);
+  if (payload.content) contentParts.push(payload.content);
+
+  const userIds = Array.isArray(payload.userIds)
+    ? payload.userIds.map(String).filter(Boolean)
+    : [];
+
+  try {
+    await channel.send({
+      content: contentParts.join(' ').trim() || undefined,
+      embeds: Array.isArray(payload.embeds) ? payload.embeds : undefined,
+      allowedMentions: {
+        roles: roleId ? [roleId] : [],
+        users: userIds,
+      },
+    });
+    console.log(`[Discord Team Channel] Sent alert to team ${teamId} channel ${team.discord_channel_id}`);
+    return true;
+  } catch (e) {
+    console.error(`[Discord Team Channel] Send failed for team ${teamId} channel ${team.discord_channel_id}:`, e.message);
+    return false;
+  }
+}
+
+async function sendTeamDiscordAlert(teamId, payload, fallbackPayload = payload) {
+  if (teamId) {
+    const sent = await sendDiscordTeamChannel(teamId, payload);
+    if (sent) return true;
+  } else {
+    console.log('[Discord Team Channel] No teamId supplied; falling back to DISCORD_TEAM_WEBHOOK');
+  }
+
+  await sendDiscordWebhook(process.env.DISCORD_TEAM_WEBHOOK, fallbackPayload);
+  return false;
+}
+
+function getTeamIdFromStintPlanInfo(stintPlanInfo) {
+  return stintPlanInfo?.teamId || stintPlanInfo?.team_id || null;
+}
+
+async function getTeamIdForRace(raceId) {
+  if (!raceId) return null;
+  try {
+    const result = await query(
+      `SELECT (sps.config->>'team_id')::int AS team_id
+       FROM races r
+       JOIN stint_planner_sessions sps ON sps.id = r.active_stint_session_id
+       WHERE r.id = $1
+         AND sps.config ? 'team_id'
+         AND sps.config->>'team_id' ~ '^[0-9]+$'
+       LIMIT 1`,
+      [raceId]
+    );
+    return result.rows[0]?.team_id || null;
+  } catch (e) {
+    console.error(`[Discord Team Channel] Failed to resolve team for race ${raceId}:`, e.message);
+    return null;
+  }
+}
+
 // Send to all channels the user has configured
 async function notifyUser(user, telegramMsg, discordEmbed) {
   if (!user) return;
@@ -153,8 +263,8 @@ async function notifyUser(user, telegramMsg, discordEmbed) {
 // ── Notification Events ────────────────────────────────────────
 
 // stintPlanInfo = { deviationMins, nextNextDriverName, plannedDurationMins, currentIndex, totalBlocks } | null
-async function notifyDriverChange(driverName, driverUser, nextDriver, stintPlanInfo) {
-  const teamWebhook = process.env.DISCORD_TEAM_WEBHOOK;
+async function notifyDriverChange(driverName, driverUser, nextDriver, stintPlanInfo, teamId = null) {
+  const resolvedTeamId = teamId || getTeamIdFromStintPlanInfo(stintPlanInfo);
   const timestamp = new Date().toISOString();
 
   // Build plan deviation text
@@ -180,7 +290,15 @@ async function notifyDriverChange(driverName, driverUser, nextDriver, stintPlanI
   }
 
   // 1. Team channel webhook
-  await sendDiscordWebhook(teamWebhook, {
+  await sendTeamDiscordAlert(resolvedTeamId, {
+    embeds: [{
+      title: 'Driver Change',
+      description: `**${driverName}** is now in the car.${planLine}`,
+      color: 0x1e90ff,
+      timestamp,
+      footer: { text: 'SM CORSE Enduro Monitor' },
+    }],
+  }, {
     title: '🏎️ Driver Change',
     description: `**${driverName}** is now in the car.${planLine}`,
     color: 0x1e90ff,
@@ -223,13 +341,20 @@ async function notifyDriverChange(driverName, driverUser, nextDriver, stintPlanI
   }
 }
 
-async function notifyLowFuel(minsRemaining, fuelLevel, nextDriver) {
+async function notifyLowFuel(minsRemaining, fuelLevel, nextDriver, teamId = null) {
   const mins = Math.round(minsRemaining);
-  const teamWebhook = process.env.DISCORD_TEAM_WEBHOOK;
   const timestamp = new Date().toISOString();
 
   // 1. Team channel
-  await sendDiscordWebhook(teamWebhook, {
+  await sendTeamDiscordAlert(teamId, {
+    embeds: [{
+      title: 'Low Fuel Warning',
+      description: `~**${mins} minutes** of fuel remaining (${fuelLevel.toFixed(1)}L)\nNext driver: prepare for your stint!`,
+      color: 0xff4444,
+      timestamp,
+      footer: { text: 'SM CORSE Enduro Monitor' },
+    }],
+  }, {
     title: 'Low Fuel Warning',
     description: `~**${mins} minutes** of fuel remaining (${fuelLevel.toFixed(1)}L)\nNext driver: prepare for your stint!`,
     color: 0xff4444,
@@ -255,23 +380,35 @@ async function notifyLowFuel(minsRemaining, fuelLevel, nextDriver) {
 
 // ── Upcoming Stint Alert ───────────────────────────────────────
 
-async function notifyUpcomingStint(driverName, driverUser, minsUntil) {
-  const teamWebhook = process.env.DISCORD_TEAM_WEBHOOK;
+async function notifyUpcomingStint(driverName, driverUser, minsUntil, teamId = null) {
   const timestamp   = new Date().toISOString();
   const mins        = Math.round(minsUntil);
+  const discordUserId = driverUser?.discord_user_id ? String(driverUser.discord_user_id) : null;
 
   // 1. Team channel embed
-  await sendDiscordWebhook(teamWebhook, {
+  await sendTeamDiscordAlert(teamId, {
     embeds: [{
-      title: '⏰ Upcoming Stint',
-      description: `**${driverName}** — stint starting in **${mins} minutes**. Get ready!`,
+      title: 'Upcoming Stint',
+      description: `**${driverName}** stint starting in **${mins} minutes**. Get ready!`,
       color: 0xffa500,
       timestamp,
       footer: { text: 'SM CORSE Enduro Monitor' },
     }],
     // Ping the driver in the channel message if we know their Discord ID
-    ...(driverUser?.discord_user_id
-      ? { content: `<@${driverUser.discord_user_id}> your stint starts in **${mins} minutes** — get strapped in!` }
+    ...(discordUserId
+      ? { content: `<@${discordUserId}> your stint starts in **${mins} minutes** — get strapped in!` }
+      : {}),
+    userIds: discordUserId ? [discordUserId] : [],
+  }, {
+    embeds: [{
+      title: 'Upcoming Stint',
+      description: `**${driverName}** stint starting in **${mins} minutes**. Get ready!`,
+      color: 0xffa500,
+      timestamp,
+      footer: { text: 'SM CORSE Enduro Monitor' },
+    }],
+    ...(discordUserId
+      ? { content: `<@${discordUserId}> your stint starts in **${mins} minutes** - get strapped in!` }
       : {}),
   });
 
@@ -324,6 +461,7 @@ async function checkUpcomingStints() {
       if (!sessionR.rows[0]) continue;
 
       const session      = sessionR.rows[0];
+      const teamId       = session.config?.team_id || null;
       const plan         = Array.isArray(session.plan) ? [...session.plan].map(b => ({ ...b })) : [];
       const currentIndex = race.current_stint_index || 0;
       const raceStartMs  = new Date(race.started_at).getTime();
@@ -357,7 +495,7 @@ async function checkUpcomingStints() {
             const driverUser = userR.rows[0] || null;
 
             console.log(`[StintAlert] ${mins}m alert — ${driverName} (race ${race.id})`);
-            await notifyUpcomingStint(driverName, driverUser, minsUntilStart);
+            await notifyUpcomingStint(driverName, driverUser, minsUntilStart, teamId);
 
             plan[i] = { ...plan[i], [flag]: true };
             planDirty = true;
@@ -387,8 +525,8 @@ function stopStintAlerts() {
   if (_alertInterval) { clearInterval(_alertInterval); _alertInterval = null; }
 }
 
-async function notifyBoxedAndOut(driverName, stintPlanInfo) {
-  const teamWebhook = process.env.DISCORD_TEAM_WEBHOOK;
+async function notifyBoxedAndOut(driverName, stintPlanInfo, teamId = null) {
+  const resolvedTeamId = teamId || getTeamIdFromStintPlanInfo(stintPlanInfo);
   const timestamp = new Date().toISOString();
 
   const stintNum = stintPlanInfo?.currentIndex != null ? stintPlanInfo.currentIndex + 1 : '?';
@@ -400,7 +538,15 @@ async function notifyBoxedAndOut(driverName, stintPlanInfo) {
     extraLines += `\n🕐 Planned stint: **${stintPlanInfo.plannedDurationMins} min**`;
   }
 
-  await sendDiscordWebhook(teamWebhook, {
+  await sendTeamDiscordAlert(resolvedTeamId, {
+    embeds: [{
+      title: 'Pit Stop - Same Driver Back Out',
+      description: `**${driverName}** has pitted and gone back out.${extraLines}`,
+      color: 0xffa500,
+      timestamp,
+      footer: { text: 'SM CORSE Enduro Monitor' },
+    }],
+  }, {
     title: '🔄 Pit Stop — Same Driver Back Out',
     description: `**${driverName}** has pitted and gone back out.${extraLines}`,
     color: 0xffa500,
@@ -430,4 +576,6 @@ module.exports = {
   notifyLowFuel,
   sendTelegram,
   sendDiscordWebhook,
+  sendDiscordTeamChannel,
+  getTeamIdForRace,
 };

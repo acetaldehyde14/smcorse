@@ -103,8 +103,10 @@ app.get('/settings', requireAuth, (req, res) => {
 
 app.post('/api/signup', async (req, res) => {
   const { email, password, name, username } = req.body;
+  const discordUserId = req.body.discord_user_id == null ? '' : String(req.body.discord_user_id).trim();
+  const telegramChatId = req.body.telegram_chat_id == null ? null : String(req.body.telegram_chat_id).trim() || null;
 
-  if (!email || !password || !name || !username) {
+  if (!email || !password || !name || !username || !discordUserId) {
     return res.status(400).json({ error: 'All fields are required' });
   }
 
@@ -136,8 +138,10 @@ app.post('/api/signup', async (req, res) => {
 
     // Insert user (PostgreSQL)
     const result = await query(
-      'INSERT INTO users (email, password_hash, username) VALUES ($1, $2, $3) RETURNING id, username',
-      [email, hashedPassword, username]
+      `INSERT INTO users (email, password_hash, username, discord_user_id, telegram_chat_id)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, username`,
+      [email, hashedPassword, username, discordUserId, telegramChatId]
     );
 
     // Create session
@@ -200,7 +204,10 @@ app.post('/api/logout', (req, res) => {
 app.get('/api/user', requireAuth, async (req, res) => {
   try {
     const result = await query(
-      'SELECT id, email, username, iracing_id, iracing_rating, created_at FROM users WHERE id = $1',
+      `SELECT id, email, username, iracing_id, iracing_rating, telegram_chat_id,
+              discord_user_id, discord_webhook, created_at
+       FROM users
+       WHERE id = $1`,
       [req.session.userId]
     );
     res.json(result.rows[0]);

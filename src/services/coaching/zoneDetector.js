@@ -34,19 +34,23 @@ const CORRECTION_TEMPLATES = {
   brake: {
     brake_earlier: {
       display_template: 'Brake about {{meters}}m earlier',
-      voice_key: 'correction_brake_about_x_meters_earlier_here',
+      voice_key: null,
+      sequence_template: ['correction_brake_{{meters}}m_earlier', 'there'],
     },
     brake_later: {
       display_template: 'Brake about {{meters}}m later',
-      voice_key: 'correction_brake_about_x_meters_later_here',
+      voice_key: null,
+      sequence_template: ['correction_brake_{{meters}}m_later', 'there'],
     },
     more_brake: {
       display_template: 'Use about {{percent}}% more brake',
-      voice_key: 'correction_add_about_x_percent_more_brake_here',
+      voice_key: null,
+      sequence_template: ['correction_add_about_{{percent}}_percent_more_brake_here', 'there'],
     },
     less_brake: {
       display_template: 'Use about {{percent}}% less brake',
-      voice_key: 'correction_use_about_x_percent_less_brake_here',
+      voice_key: null,
+      sequence_template: ['correction_use_about_{{percent}}_percent_less_brake_here', 'there'],
     },
     release_earlier: {
       display_template: 'Release the brake earlier',

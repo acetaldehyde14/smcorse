@@ -1,10 +1,26 @@
+# Dependencies
 node_modules/
+frontend/node_modules/
+
+# Environment files
 .env
+.env.*
+!.env.example
+frontend/.env.local
+
+# Build and cache output
+frontend/.next/
+frontend/out/
+frontend/tsconfig.tsbuildinfo
+*.tsbuildinfo
+
+# Runtime data
 uploads/
 logs/
 nul
-.claude/
-iracing-coach.tar.gz
-
 users.db
 *.db
+
+# Local tooling and archives
+.claude/
+iracing-coach.tar.gz

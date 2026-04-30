@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { pool, query } = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
-const { notifyDriverChange, notifyBoxedAndOut, notifyLowFuel } = require('../services/notifications');
+const { notifyDriverChange, notifyBoxedAndOut, notifyLowFuel, getTeamIdForRace } = require('../services/notifications');
 
 const BLOCK_MINS = 45;
 
@@ -489,11 +489,12 @@ router.post('/:id/event', authenticateToken, async (req, res) => {
         : null;
 
       const driverUser = driverUserR.rows[0] || null;
+      const teamId = await getTeamIdForRace(race.id);
 
       if (stintPlanInfo?.isSameDriver) {
-        await notifyBoxedAndOut(name, stintPlanInfo);
+        await notifyBoxedAndOut(name, stintPlanInfo, teamId);
       } else {
-        await notifyDriverChange(name, driverUser, nextRosterDriver, stintPlanInfo);
+        await notifyDriverChange(name, driverUser, nextRosterDriver, stintPlanInfo, teamId);
       }
 
       res.json({ ok: true, stintPlanInfo });
@@ -542,7 +543,8 @@ router.post('/:id/event', authenticateToken, async (req, res) => {
           ? roster[currentIdx + 1]
           : null;
 
-        await notifyLowFuel(mins_remaining || 0, fuel_level, nextDriver);
+        const teamId = await getTeamIdForRace(race.id);
+        await notifyLowFuel(mins_remaining || 0, fuel_level, nextDriver, teamId);
       }
 
       res.json({ ok: true });

@@ -15,6 +15,81 @@ const { analyzeObservation }   = require('../services/coaching/observationAnalyz
 const { buildLapSummary }      = require('../services/coaching/lapSummary');
 
 const router = express.Router();
+const COACHING_VOICE_DIR = path.join(__dirname, '../../public/coaching-voice');
+const REQUIRED_CONTEXT_CLIPS = ['here', 'there', 'thiscorner', 'nextcorner', 'lastcorner'];
+const FORBIDDEN_CLIP_PATTERNS = [
+  ['corner', 'turn'].join('_') + '_',
+  ['turn', '1'].join('_'),
+  ['turn', '2'].join('_'),
+  ['turn', '3'].join('_'),
+  ['corner', 'next', 'turn'].join('_'),
+];
+
+function isForbiddenClipKey(key) {
+  return FORBIDDEN_CLIP_PATTERNS.some(pattern => key.includes(pattern));
+}
+
+function wavPathForKey(key) {
+  return path.join(COACHING_VOICE_DIR, `${key}.wav`);
+}
+
+function clipExists(key) {
+  return fs.existsSync(wavPathForKey(key));
+}
+
+function buildStartupCue() {
+  const sequence = clipExists('track')
+    ? ['coaching_active', 'track']
+    : ['coaching_active'];
+
+  return {
+    display_text: 'Coaching active for this track',
+    sequence,
+  };
+}
+
+function contextForReferenceZone(zone) {
+  if (zone.segment_type === 'lift') return 'nextcorner';
+  if (zone.segment_type === 'apex' || zone.segment_type === 'throttle_pickup') return 'thiscorner';
+  return 'here';
+}
+
+function decorateCoachingZone(zone) {
+  const sequence = zone.generic_voice_key
+    ? [zone.generic_voice_key, contextForReferenceZone(zone)]
+    : [];
+
+  return {
+    ...zone,
+    display_text: zone.generic_display_text || null,
+    voice_key: null,
+    sequence,
+    cue_type: 'reference',
+  };
+}
+
+function buildFilesystemVoiceManifest() {
+  const clips = {};
+
+  for (const key of REQUIRED_CONTEXT_CLIPS) {
+    clips[key] = `/coaching-voice/${key}.wav`;
+  }
+
+  if (fs.existsSync(COACHING_VOICE_DIR)) {
+    const files = fs.readdirSync(COACHING_VOICE_DIR, { withFileTypes: true });
+    for (const file of files) {
+      if (!file.isFile() || path.extname(file.name).toLowerCase() !== '.wav') continue;
+      const key = path.basename(file.name, path.extname(file.name));
+      if (isForbiddenClipKey(key)) continue;
+      clips[key] = `/coaching-voice/${file.name}`;
+    }
+  }
+
+  return {
+    version: 1,
+    clips,
+  };
+}
 
 // ── Reference management ──────────────────────────────────────────────────────
 
@@ -132,7 +207,7 @@ router.get('/reference/active', async (req, res) => {
        ORDER BY updated_at DESC`,
       [req.user.id]
     );
-    res.json(result.rows);
+    res.json(result.rows.map(decorateCoachingZone));
   } catch (err) {
     console.error('[coaching] active references error:', err);
     res.status(500).json({ error: 'Failed to fetch active references' });
@@ -195,7 +270,7 @@ router.get('/reference/:referenceId/zones', async (req, res) => {
        ORDER BY sequence_index ASC`,
       [referenceId]
     );
-    res.json(result.rows);
+    res.json(result.rows.map(decorateCoachingZone));
   } catch (err) {
     console.error('[coaching] get zones error:', err);
     res.status(500).json({ error: 'Failed to fetch zones' });
@@ -240,6 +315,7 @@ router.get('/profile/active', async (req, res) => {
         car_name: null,
         track_length_m: null,
         version: 1,
+        startup_cue: null,
         zones: [],
       });
     }
@@ -267,7 +343,8 @@ router.get('/profile/active', async (req, res) => {
       car_name: reference.car_name,
       track_length_m: reference.track_length_m || null,
       version: 1,
-      zones: zonesResult.rows,
+      startup_cue: buildStartupCue(),
+      zones: zonesResult.rows.map(decorateCoachingZone),
     });
   } catch (err) {
     console.error('[coaching] profile/active error:', err);
@@ -323,6 +400,7 @@ router.get('/profile/by-session/:sessionId', async (req, res) => {
         car_name: null,
         track_length_m: null,
         version: 1,
+        startup_cue: null,
         zones: [],
       });
     }
@@ -349,7 +427,8 @@ router.get('/profile/by-session/:sessionId', async (req, res) => {
       car_name: reference.car_name,
       track_length_m: reference.track_length_m || null,
       version: 1,
-      zones: zonesResult.rows,
+      startup_cue: buildStartupCue(),
+      zones: zonesResult.rows.map(decorateCoachingZone),
     });
   } catch (err) {
     console.error('[coaching] profile/by-session error:', err);
@@ -425,6 +504,7 @@ router.post('/observations', async (req, res) => {
             delta_entry_speed_kph: null,
             recommendation_key: null,
             recommendation_payload: null,
+            correction_event: null,
           };
 
       const insertResult = await query(
@@ -470,7 +550,12 @@ router.post('/observations', async (req, res) => {
 
       if (analysis.recommendation_key) {
         recommendations.push({
+          display_text: analysis.correction_event?.display_text || null,
+          voice_key: null,
+          sequence: analysis.correction_event?.sequence || [],
+          priority: analysis.correction_event?.priority || 'correction',
           zone_id,
+          cue_type: analysis.correction_event?.cue_type || 'correction',
           recommendation_key: analysis.recommendation_key,
           recommendation_payload: analysis.recommendation_payload,
         });
@@ -559,6 +644,11 @@ router.get('/lap-summary', async (req, res) => {
  */
 router.get('/voice/manifest', async (req, res) => {
   try {
+    const filesystemManifest = buildFilesystemVoiceManifest();
+    if (Object.keys(filesystemManifest.clips).length > 0) {
+      return res.json(filesystemManifest);
+    }
+
     const result = await query(
       `SELECT manifest_json
        FROM coaching_voice_manifests
@@ -568,7 +658,20 @@ router.get('/voice/manifest', async (req, res) => {
     if (!result.rows.length) {
       return res.status(404).json({ error: 'No voice manifest found — run build-coaching-voice-pack first' });
     }
-    res.json(result.rows[0].manifest_json);
+    const dbManifest = result.rows[0].manifest_json || {};
+    if (Array.isArray(dbManifest.cues) && !dbManifest.clips) {
+      const clips = {};
+      for (const cue of dbManifest.cues) {
+        if (!cue.cue_key || !cue.relative_path) continue;
+        if (isForbiddenClipKey(cue.cue_key)) continue;
+        clips[cue.cue_key] = cue.relative_path.startsWith('/')
+          ? cue.relative_path
+          : `/${cue.relative_path}`;
+      }
+      return res.json({ version: dbManifest.version || 1, clips });
+    }
+
+    res.json(dbManifest);
   } catch (err) {
     console.error('[coaching] voice/manifest error:', err);
     res.status(500).json({ error: 'Failed to fetch manifest' });

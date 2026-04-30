@@ -666,12 +666,24 @@
                     <input type="text" id="signupName" required>
                 </div>
                 <div class="form-group">
+                    <label for="signupUsername">Username</label>
+                    <input type="text" id="signupUsername" required placeholder="e.g. max_verstappen">
+                </div>
+                <div class="form-group">
                     <label for="signupEmail">Email</label>
                     <input type="email" id="signupEmail" required>
                 </div>
                 <div class="form-group">
                     <label for="signupPassword">Password</label>
                     <input type="password" id="signupPassword" required minlength="8">
+                </div>
+                <div class="form-group">
+                    <label for="signupDiscordUserId">Discord ID</label>
+                    <input type="text" id="signupDiscordUserId" required placeholder="e.g. 123456789012345678">
+                </div>
+                <div class="form-group">
+                    <label for="signupTelegramChatId">Telegram ID (optional)</label>
+                    <input type="text" id="signupTelegramChatId" placeholder="e.g. 987654321">
                 </div>
                 <button type="submit" class="submit-btn">Create Account</button>
             </form>
@@ -756,8 +768,11 @@
             e.preventDefault();
 
             const name = document.getElementById('signupName').value;
+            const username = document.getElementById('signupUsername').value;
             const email = document.getElementById('signupEmail').value;
             const password = document.getElementById('signupPassword').value;
+            const discord_user_id = document.getElementById('signupDiscordUserId').value.trim();
+            const telegram_chat_id = document.getElementById('signupTelegramChatId').value.trim() || null;
             const errorDiv = document.getElementById('signupError');
 
             try {
@@ -766,7 +781,7 @@
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ name, email, password }),
+                    body: JSON.stringify({ name, username, email, password, discord_user_id, telegram_chat_id }),
                 });
 
                 const data = await response.json();

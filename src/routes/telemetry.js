@@ -185,7 +185,7 @@ async function insertLapFeatures(queryFn, lapId, sessionId, userId, lapTime, sec
  */
 async function backfillIBTFrames(sessionId, lapIdMap, userId, filePath, sessionCreatedAt) {
   console.log(`[backfill] Starting IBT frame backfill for session ${sessionId}`);
-  const { frames } = await parser.parseFrames(filePath, 15);
+  const { frames } = await parser.parseFrames(filePath, 60);
   if (!frames.length) {
     console.log('[backfill] No frames extracted, skipping');
     return;
@@ -347,13 +347,16 @@ router.post('/upload',
 // ── Live session routes ───────────────────────────────────────────
 
 // POST /api/telemetry/live/session/start
-async function resolveLiveSession(sessionId, userId) {
+async function resolveLiveSession(sessionId, userId, options = {}) {
+  const ownerClause = options.allowTeamRead ? '' : 'AND user_id = $2';
+  const params = options.allowTeamRead ? [sessionId] : [sessionId, userId];
+
   const canonical = await query(
     `SELECT id, track_name, car_name, session_type, ingest_mode, status, created_at, ended_at
      FROM sessions
-     WHERE id = $1 AND user_id = $2
+     WHERE id = $1 ${ownerClause}
      LIMIT 1`,
-    [sessionId, userId]
+    params
   );
   if (canonical.rowCount > 0) {
     return { source: 'sessions', session: canonical.rows[0] };
@@ -362,9 +365,9 @@ async function resolveLiveSession(sessionId, userId) {
   const fallback = await query(
     `SELECT id, track_name, car_name, session_type, started_at, ended_at, created_at
      FROM telemetry_sessions
-     WHERE id = $1 AND user_id = $2
+     WHERE id = $1 ${ownerClause}
      LIMIT 1`,
-    [sessionId, userId]
+    params
   );
   if (fallback.rowCount > 0) {
     const row = fallback.rows[0];
@@ -513,7 +516,7 @@ router.post('/live/batch', authenticateToken, async (req, res) => {
     await query(
       `INSERT INTO telemetry_batches (session_id, lap_number, sample_rate, samples)
        VALUES ($1, $2, $3, $4)`,
-      [session_id, lap_number || 0, sample_rate_hz || 15, JSON.stringify(frames)]
+      [session_id, lap_number || 0, sample_rate_hz || 60, JSON.stringify(frames)]
     );
 
     res.json({ ok: true });
@@ -617,76 +620,150 @@ router.post('/live/session/end', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Session not found' });
     }
 
+    // Capture which table(s) were updated before sending the response
+    const isCanonicalSession = result.rows.length > 0;
+    const isTelemetrySession = newResult.rowCount > 0 && !isCanonicalSession;
+
     res.json({ ok: true, session_id });
 
-    // Async: create lap entries from live frames, then compute features
+    // Async: create lap entries from live frames, compute features, and promote telemetry_sessions
     (async () => {
       try {
-        // 1. For live-streamed sessions, create lap entries from telemetry_frames
-        //    (frames from the desktop client have lap_number set but no entry in laps table)
-        const sessRow = await query(
-          `SELECT ingest_mode, user_id FROM sessions WHERE id = $1`,
-          [session_id]
-        );
-        if (sessRow.rows[0]?.ingest_mode === 'live') {
-          const lapGroups = await query(
-            `SELECT lap_number,
-                    MIN(session_time) as t_start,
-                    MAX(session_time) as t_end,
-                    COUNT(*) as frame_count
-             FROM telemetry_frames
-             WHERE session_id = $1 AND lap_number IS NOT NULL AND lap_number > 0
-             GROUP BY lap_number
-             HAVING COUNT(*) >= 10
+        if (isCanonicalSession) {
+          // For canonical live sessions: create laps from telemetry_frames if not already present
+          const sessRow = await query(
+            `SELECT ingest_mode, user_id FROM sessions WHERE id = $1`,
+            [session_id]
+          );
+          if (sessRow.rows[0]?.ingest_mode === 'live') {
+            const lapGroups = await query(
+              `SELECT lap_number,
+                      MIN(session_time) as t_start,
+                      MAX(session_time) as t_end,
+                      COUNT(*) as frame_count
+               FROM telemetry_frames
+               WHERE session_id = $1 AND lap_number IS NOT NULL AND lap_number > 0
+               GROUP BY lap_number
+               HAVING COUNT(*) >= 10
+               ORDER BY lap_number`,
+              [session_id]
+            );
+            for (const g of lapGroups.rows) {
+              const lapTime = parseFloat(g.t_end) - parseFloat(g.t_start);
+              if (lapTime < 30 || lapTime > 7200) continue;
+              const exists = await query(
+                `SELECT 1 FROM laps WHERE session_id = $1 AND lap_number = $2 LIMIT 1`,
+                [session_id, g.lap_number]
+              );
+              if (exists.rowCount > 0) continue;
+              const ins = await query(
+                `INSERT INTO laps (session_id, user_id, lap_number, lap_time, created_at)
+                 VALUES ($1, $2, $3, $4, NOW()) RETURNING id`,
+                [session_id, req.user.id, g.lap_number, lapTime.toFixed(3)]
+              );
+              const lapId = ins.rows[0].id;
+              await query(
+                `UPDATE telemetry_frames SET lap_id = $1
+                 WHERE session_id = $2 AND lap_number = $3 AND lap_id IS NULL`,
+                [lapId, session_id, g.lap_number]
+              );
+            }
+            console.log(`[session/end] Created laps from live frames for session ${session_id}`);
+          }
+
+          // Compute features for any laps that don't have them yet
+          const unfeaturized = await query(
+            `SELECT l.id, l.lap_time, l.session_id
+             FROM laps l
+             LEFT JOIN lap_features lf ON lf.lap_id = l.id
+             WHERE l.session_id = $1 AND lf.lap_id IS NULL`,
+            [session_id]
+          );
+          for (const lap of unfeaturized.rows) {
+            const framesResult = await query(
+              `SELECT speed_kph, throttle, brake, steering_deg
+               FROM telemetry_frames WHERE lap_id = $1 ORDER BY session_time`,
+              [lap.id]
+            );
+            if (!framesResult.rows.length) continue;
+            const features = computeLapFeatures(framesResult.rows);
+            await insertLapFeatures(query, lap.id, session_id, req.user.id, lap.lap_time, null, features);
+          }
+          console.log(`[session/end] Feature extraction done for session ${session_id}`);
+        }
+
+        if (isTelemetrySession) {
+          // Promote telemetry_sessions → canonical sessions/laps/telemetry_frames tables
+          // so the laps appear in the library, coaching interface, and all-laps endpoint.
+          const tsRow = await query(
+            'SELECT * FROM telemetry_sessions WHERE id = $1',
+            [session_id]
+          );
+          if (!tsRow.rowCount) return;
+          const ts = tsRow.rows[0];
+
+          const newSess = await query(
+            `INSERT INTO sessions
+               (user_id, track_id, track_name, car_id, car_name, session_type, ingest_mode, status, created_at, ended_at)
+             VALUES ($1,$2,$3,$4,$5,$6,'live','closed',$7,$8)
+             RETURNING id, created_at`,
+            [
+              ts.user_id,
+              ts.track_id || (ts.track_name || '').toLowerCase().replace(/[^a-z0-9]/g, '_'),
+              ts.track_name,
+              ts.car_id || (ts.car_name || '').toLowerCase().replace(/[^a-z0-9]/g, '_'),
+              ts.car_name,
+              ts.session_type,
+              ts.started_at || ts.created_at,
+              ts.ended_at || new Date().toISOString()
+            ]
+          );
+          const canonicalSessionId = newSess.rows[0].id;
+          const sessionCreatedAt = newSess.rows[0].created_at;
+
+          const tLaps = await query(
+            `SELECT * FROM telemetry_laps
+             WHERE session_id = $1 AND lap_time_s > 30 AND lap_time_s < 7200
              ORDER BY lap_number`,
             [session_id]
           );
-          for (const g of lapGroups.rows) {
-            const lapTime = parseFloat(g.t_end) - parseFloat(g.t_start);
-            if (lapTime < 30 || lapTime > 7200) continue; // sanity check
-            // Only insert if this lap_number isn't already in laps table for this session
-            const exists = await query(
-              `SELECT 1 FROM laps WHERE session_id = $1 AND lap_number = $2 LIMIT 1`,
-              [session_id, g.lap_number]
-            );
-            if (exists.rowCount > 0) continue;
-            const ins = await query(
-              `INSERT INTO laps (session_id, user_id, lap_number, lap_time, created_at)
-               VALUES ($1, $2, $3, $4, NOW()) RETURNING id`,
-              [session_id, req.user.id, g.lap_number, lapTime.toFixed(3)]
-            );
-            const lapId = ins.rows[0].id;
-            // Link frames to this lap
-            await query(
-              `UPDATE telemetry_frames SET lap_id = $1
-               WHERE session_id = $2 AND lap_number = $3 AND lap_id IS NULL`,
-              [lapId, session_id, g.lap_number]
-            );
-          }
-          console.log(`[session/end] Created laps from live frames for session ${session_id}`);
-        }
 
-        // 2. Compute features for any laps that don't have them yet
-        const unfeaturized = await query(
-          `SELECT l.id, l.lap_time, l.session_id
-           FROM laps l
-           LEFT JOIN lap_features lf ON lf.lap_id = l.id
-           WHERE l.session_id = $1 AND lf.lap_id IS NULL`,
-          [session_id]
-        );
-        for (const lap of unfeaturized.rows) {
-          const framesResult = await query(
-            `SELECT speed_kph, throttle, brake, steering_deg
-             FROM telemetry_frames WHERE lap_id = $1 ORDER BY session_time`,
-            [lap.id]
-          );
-          if (!framesResult.rows.length) continue;
-          const features = computeLapFeatures(framesResult.rows);
-          await insertLapFeatures(query, lap.id, session_id, req.user.id, lap.lap_time, null, features);
+          for (const tLap of tLaps.rows) {
+            const lapIns = await query(
+              `INSERT INTO laps (session_id, user_id, lap_number, lap_time, is_valid, created_at)
+               VALUES ($1,$2,$3,$4,$5,NOW()) RETURNING id`,
+              [canonicalSessionId, ts.user_id, tLap.lap_number, tLap.lap_time_s, tLap.is_valid]
+            );
+            const lapId = lapIns.rows[0].id;
+
+            const batches = await query(
+              'SELECT samples FROM telemetry_batches WHERE session_id = $1 AND lap_number = $2 ORDER BY id',
+              [session_id, tLap.lap_number]
+            );
+
+            const allFrames = batches.rows
+              .flatMap(r => (Array.isArray(r.samples) ? r.samples : []))
+              .map(parseBatchFrame)
+              .filter(f => f.session_time != null);
+
+            if (allFrames.length > 0) {
+              const baseTs = new Date(sessionCreatedAt).getTime();
+              for (const f of allFrames) {
+                f.ts = new Date(baseTs + f.session_time * 1000).toISOString();
+                f.lap_id = lapId;
+                f.lap_number = tLap.lap_number;
+              }
+              await bulkInsertFrames(query, allFrames, canonicalSessionId, ts.user_id, lapId, 'live');
+
+              const features = computeLapFeatures(allFrames);
+              await insertLapFeatures(query, lapId, canonicalSessionId, ts.user_id, tLap.lap_time_s, null, features);
+            }
+          }
+
+          console.log(`[session/end] Promoted telemetry_session ${session_id} → canonical session ${canonicalSessionId} (${tLaps.rows.length} laps)`);
         }
-        console.log(`[session/end] Feature extraction done for session ${session_id}`);
       } catch (e) {
-        console.error('[session/end] Feature extraction error:', e.message);
+        console.error('[session/end] Post-processing error:', e.message);
       }
     })();
   } catch (error) {
@@ -698,7 +775,7 @@ router.post('/live/session/end', authenticateToken, async (req, res) => {
 // GET /api/telemetry/live/session/:id/status
 router.get('/live/session/:id/status', authenticateToken, async (req, res) => {
   try {
-    const resolved = await resolveLiveSession(req.params.id, req.user.id);
+    const resolved = await resolveLiveSession(req.params.id, req.user.id, { allowTeamRead: true });
     if (!resolved) return res.status(404).json({ error: 'Session not found' });
 
     const [frameCount, lapCount] = resolved.source === 'sessions'
@@ -737,8 +814,7 @@ router.get('/live/active', authenticateToken, async (req, res) => {
     const result = await query(
       `SELECT s.id, s.ingest_mode, s.status
        FROM sessions s
-       WHERE s.user_id = $1
-         AND s.status = 'open'
+       WHERE s.status = 'open'
          AND s.ingest_mode = 'live'
          AND EXISTS (
            SELECT 1 FROM telemetry_frames tf
@@ -748,7 +824,7 @@ router.get('/live/active', authenticateToken, async (req, res) => {
          )
        ORDER BY s.created_at DESC
        LIMIT 1`,
-      [req.user.id]
+      []
     );
     if (result.rows.length) {
       return res.json({
@@ -761,8 +837,7 @@ router.get('/live/active', authenticateToken, async (req, res) => {
     const legacy = await query(
       `SELECT ts.id
        FROM telemetry_sessions ts
-       WHERE ts.user_id = $1
-         AND ts.ended_at IS NULL
+       WHERE ts.ended_at IS NULL
          AND EXISTS (
            SELECT 1 FROM telemetry_batches tb
            WHERE tb.session_id = ts.id
@@ -771,7 +846,7 @@ router.get('/live/active', authenticateToken, async (req, res) => {
          )
        ORDER BY ts.started_at DESC NULLS LAST, ts.created_at DESC
        LIMIT 1`,
-      [req.user.id]
+      []
     );
     if (!legacy.rows.length) return res.json({ session_id: null, is_live: false });
     return res.json({
@@ -792,7 +867,7 @@ router.get('/live/session/:id/frames', authenticateToken, async (req, res) => {
     const sinceTime = parseFloat(req.query.since_session_time) || 0;
     const limit = Math.min(parseInt(req.query.limit) || 300, 1000);
 
-    const resolved = await resolveLiveSession(req.params.id, req.user.id);
+    const resolved = await resolveLiveSession(req.params.id, req.user.id, { allowTeamRead: true });
     if (!resolved) return res.status(404).json({ error: 'Session not found' });
 
     let frames = [];
@@ -802,10 +877,10 @@ router.get('/live/session/:id/frames', authenticateToken, async (req, res) => {
                 speed_kph, throttle, brake, steering_deg, gear, rpm,
                 lat_accel, long_accel, yaw_rate
          FROM telemetry_frames
-         WHERE session_id = $1 AND user_id = $2 AND session_time > $3
+         WHERE session_id = $1 AND session_time > $2
          ORDER BY session_time ASC
-         LIMIT $4`,
-        [req.params.id, req.user.id, sinceTime, limit]
+         LIMIT $3`,
+        [req.params.id, sinceTime, limit]
       );
       frames = result.rows;
     } else {
@@ -839,7 +914,7 @@ router.get('/live/session/:id/frames', authenticateToken, async (req, res) => {
 // Extends /status with current lap values and lap table — used by the live graph page.
 router.get('/live/session/:id/summary', authenticateToken, async (req, res) => {
   try {
-    const resolved = await resolveLiveSession(req.params.id, req.user.id);
+    const resolved = await resolveLiveSession(req.params.id, req.user.id, { allowTeamRead: true });
     if (!resolved) return res.status(404).json({ error: 'Session not found' });
 
     let lf = null;
@@ -849,9 +924,9 @@ router.get('/live/session/:id/summary', authenticateToken, async (req, res) => {
       const [latestFrame, lapsResult, frameCountResult] = await Promise.all([
         query(
           `SELECT session_time, lap_number, speed_kph, throttle, brake, gear, rpm, ts
-           FROM telemetry_frames WHERE session_id = $1 AND user_id = $2
+           FROM telemetry_frames WHERE session_id = $1
            ORDER BY session_time DESC LIMIT 1`,
-          [req.params.id, req.user.id]
+          [req.params.id]
         ),
         query(
           `SELECT lap_number, lap_time FROM laps WHERE session_id = $1

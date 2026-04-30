@@ -344,7 +344,7 @@ export default function LiveSessionPage() {
             <div className="text-center py-12 text-dark-muted">
               <p className="text-4xl mb-3">📡</p>
               <p className="font-heading font-semibold text-white">Session not found</p>
-              <p className="text-sm mt-1">This session may have been deleted or you don't have access.</p>
+              <p className="text-sm mt-1">This session may have been deleted or you don&apos;t have access.</p>
             </div>
           )}
         </div>

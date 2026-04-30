@@ -83,6 +83,8 @@ export interface Team {
   id: number;
   name: string;
   description?: string;
+  discord_channel_id?: string | null;
+  discord_role_id?: string | null;
   member_count: number;
   created_at: string;
 }
@@ -158,6 +160,37 @@ export interface LiveSessionSummary {
     gear: number | null;
     rpm: number | null;
   } | null;
+}
+
+export interface CoachingVoiceCue {
+  display_text: string;
+  sequence: string[];
+}
+
+export interface CoachingCorrectionCue extends CoachingVoiceCue {
+  voice_key: null;
+  priority: 'correction';
+  zone_id: string;
+  cue_type: 'correction';
+  recommendation_key?: string;
+  recommendation_payload?: Record<string, unknown> | null;
+}
+
+export interface CoachingProfile {
+  profile_id: number | null;
+  track_id: string;
+  car_id: string;
+  track_name: string | null;
+  car_name: string | null;
+  track_length_m: number | null;
+  version: number;
+  startup_cue: CoachingVoiceCue | null;
+  zones: Record<string, unknown>[];
+}
+
+export interface CoachingObservationsResponse {
+  inserted: number;
+  recommendations: CoachingCorrectionCue[];
 }
 
 export interface LapFeatures {

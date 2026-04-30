@@ -2,6 +2,17 @@ const express = require('express');
 const router = express.Router();
 const { query } = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
+const { sendDiscordTeamChannel } = require('../services/notifications');
+
+function normalizeOptionalString(value, fieldName) {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value !== 'string') {
+    const err = new Error(`${fieldName} must be a string`);
+    err.status = 400;
+    throw err;
+  }
+  return value.trim() || null;
+}
 
 // GET /api/teams
 router.get('/', authenticateToken, async (req, res) => {
@@ -24,13 +35,72 @@ router.post('/', authenticateToken, async (req, res) => {
   const { name, description } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: 'name required' });
   try {
+    const discordChannelId = normalizeOptionalString(req.body.discord_channel_id, 'discord_channel_id');
+    const discordRoleId = normalizeOptionalString(req.body.discord_role_id, 'discord_role_id');
     const result = await query(
-      'INSERT INTO teams (name, description, created_by) VALUES ($1, $2, $3) RETURNING *',
-      [name.trim(), description || null, req.user.id]
+      `INSERT INTO teams (name, description, discord_channel_id, discord_role_id, created_by)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [name.trim(), description || null, discordChannelId, discordRoleId, req.user.id]
     );
     res.status(201).json({ ...result.rows[0], member_count: 0 });
   } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
     console.error('[Teams] create error:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PUT /api/teams/:id
+router.put('/:id', authenticateToken, async (req, res) => {
+  const { name, description } = req.body;
+  if (!name || typeof name !== 'string' || !name.trim()) {
+    return res.status(400).json({ error: 'name required' });
+  }
+
+  try {
+    const discordChannelId = normalizeOptionalString(req.body.discord_channel_id, 'discord_channel_id');
+    const discordRoleId = normalizeOptionalString(req.body.discord_role_id, 'discord_role_id');
+    const result = await query(
+      `UPDATE teams
+       SET name = $1,
+           description = $2,
+           discord_channel_id = $3,
+           discord_role_id = $4,
+           updated_at = NOW()
+       WHERE id = $5
+       RETURNING *`,
+      [name.trim(), description || null, discordChannelId, discordRoleId, req.params.id]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Team not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    console.error('[Teams] update error:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/teams/:id/test-discord
+router.post('/:id/test-discord', authenticateToken, async (req, res) => {
+  try {
+    const sent = await sendDiscordTeamChannel(req.params.id, {
+      content: 'Test Discord alert from SM CORSE.',
+      embeds: [{
+        title: 'Discord Channel Test',
+        description: 'Team alerts for this SM CORSE team are configured correctly.',
+        color: 0x1e90ff,
+        timestamp: new Date().toISOString(),
+        footer: { text: 'SM CORSE Enduro Monitor' },
+      }],
+    });
+
+    if (!sent) {
+      return res.status(400).json({ error: 'Discord channel is not configured or could not be reached' });
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[Teams] test discord error:', err.message);
     res.status(500).json({ error: 'Server error' });
   }
 });

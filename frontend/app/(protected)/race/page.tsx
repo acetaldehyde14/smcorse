@@ -738,7 +738,7 @@ function RaceDetail({
           >
             {stintPlan?.session
               ? <StintPlanPanel plan={stintPlan} raceStartedAt={race?.started_at ?? null} />
-              : <p className="text-dark-muted text-sm p-6">No stint plan linked. Click "Link Plan" to attach one from the stint planner.</p>}
+              : <p className="text-dark-muted text-sm p-6">No stint plan linked. Click &quot;Link Plan&quot; to attach one from the stint planner.</p>}
           </Card>
 
           {/* Stint Roster */}

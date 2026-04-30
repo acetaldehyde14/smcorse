@@ -11,6 +11,34 @@
 // ── Base catalog (non-parameterized cues) ─────────────────────────────────────
 
 const BASE_CUES = [
+  ...['here', 'there', 'thiscorner', 'nextcorner', 'lastcorner'].map((cue_key) => ({
+    cue_key,
+    default_text: {
+      here: 'Here.',
+      there: 'There.',
+      thiscorner: 'This corner.',
+      nextcorner: 'Next corner.',
+      lastcorner: 'Last corner.',
+    }[cue_key],
+    category: 'context',
+    priority: 0,
+    language_code: 'en-US',
+    suggested_voice_name: 'Magpie-Multilingual.EN-US.Aria',
+    tags: ['context'],
+    is_parameterized: false,
+    param_slots: [],
+  })),
+  {
+    cue_key: 'coaching_active',
+    default_text: 'Coaching active.',
+    category: 'context',
+    priority: 0,
+    language_code: 'en-US',
+    suggested_voice_name: 'Magpie-Multilingual.EN-US.Aria',
+    tags: ['context', 'startup'],
+    is_parameterized: false,
+    param_slots: [],
+  },
   // ── Reference cues ──────────────────────────────────────────────────────────
   {
     cue_key: 'reference_brake_now_at_the_marker',
@@ -237,6 +265,17 @@ const BASE_CUES = [
     param_slots: [],
   },
   {
+    cue_key: 'correction_peak_brake_needs_to_be_higher_here',
+    default_text: 'Peak brake needs to be higher.',
+    category: 'correction',
+    priority: 2,
+    language_code: 'en-US',
+    suggested_voice_name: 'Magpie-Multilingual.EN-US.Aria',
+    tags: ['brake', 'peak', 'correction'],
+    is_parameterized: false,
+    param_slots: [],
+  },
+  {
     cue_key: 'correction_carry_about_5_kph_more_minimum_speed',
     default_text: 'Carry about 5 kilometres per hour more minimum speed.',
     category: 'correction',
@@ -333,8 +372,8 @@ const BASE_CUES = [
 const PARAM_TEMPLATES = [
   // Brake earlier/later — meters
   {
-    keyTemplate: 'correction_brake_about_{meters}_meters_earlier_here',
-    textTemplate: 'Brake about {meters} metres earlier here.',
+    keyTemplate: 'correction_brake_{meters}m_earlier',
+    textTemplate: 'Brake {meters} metres earlier.',
     category: 'correction',
     priority: 2,
     tags: ['brake', 'correction', 'meters'],
@@ -342,8 +381,8 @@ const PARAM_TEMPLATES = [
     values: { meters: [5, 10, 15, 20, 25, 30] },
   },
   {
-    keyTemplate: 'correction_brake_about_{meters}_meters_later_here',
-    textTemplate: 'Brake about {meters} metres later here.',
+    keyTemplate: 'correction_brake_{meters}m_later',
+    textTemplate: 'Brake {meters} metres later.',
     category: 'correction',
     priority: 2,
     tags: ['brake', 'correction', 'meters'],

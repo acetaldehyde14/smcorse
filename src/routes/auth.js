@@ -11,7 +11,9 @@ router.post('/signup',
   [
     body('email').isEmail().normalizeEmail(),
     body('password').isLength({ min: 6 }),
-    body('username').isLength({ min: 3, max: 50 }).trim()
+    body('username').isLength({ min: 3, max: 50 }).trim(),
+    body('discord_user_id').trim().notEmpty(),
+    body('telegram_chat_id').optional({ nullable: true, checkFalsy: true }).trim()
   ],
   async (req, res) => {
     try {
@@ -21,6 +23,8 @@ router.post('/signup',
       }
 
       const { email, password, username } = req.body;
+      const discordUserId = req.body.discord_user_id == null ? '' : String(req.body.discord_user_id).trim();
+      const telegramChatId = req.body.telegram_chat_id == null ? null : String(req.body.telegram_chat_id).trim() || null;
 
       // Check if user exists
       const existing = await query('SELECT id FROM users WHERE email = $1', [email]);
@@ -33,10 +37,10 @@ router.post('/signup',
 
       // Create user
       const result = await query(
-        `INSERT INTO users (email, password_hash, username, created_at)
-         VALUES ($1, $2, $3, NOW())
-         RETURNING id, email, username`,
-        [email, passwordHash, username]
+        `INSERT INTO users (email, password_hash, username, discord_user_id, telegram_chat_id, created_at)
+         VALUES ($1, $2, $3, $4, $5, NOW())
+         RETURNING id, email, username, discord_user_id, telegram_chat_id`,
+        [email, passwordHash, username, discordUserId, telegramChatId]
       );
 
       const user = result.rows[0];
@@ -48,7 +52,9 @@ router.post('/signup',
         user: {
           id: user.id,
           email: user.email,
-          username: user.username
+          username: user.username,
+          discord_user_id: user.discord_user_id,
+          telegram_chat_id: user.telegram_chat_id
         },
         token
       });

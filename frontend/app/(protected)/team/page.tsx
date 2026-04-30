@@ -158,11 +158,23 @@ export default function TeamPage() {
   // Inline "new team" input
   const [creatingTeam, setCreatingTeam] = useState(false);
   const [newTeamName, setNewTeamName] = useState('');
+  const [newTeamDiscordChannelId, setNewTeamDiscordChannelId] = useState('');
+  const [newTeamDiscordRoleId, setNewTeamDiscordRoleId] = useState('');
   const [creatingTeamSubmitting, setCreatingTeamSubmitting] = useState(false);
   const newTeamInputRef = useRef<HTMLInputElement>(null);
 
   // Hovering over team row (for delete button)
   const [hoveredTeamId, setHoveredTeamId] = useState<number | null>(null);
+
+  // Team settings
+  const [teamSettings, setTeamSettings] = useState({
+    name: '',
+    description: '',
+    discord_channel_id: '',
+    discord_role_id: '',
+  });
+  const [teamSettingsSaving, setTeamSettingsSaving] = useState(false);
+  const [discordTestSending, setDiscordTestSending] = useState(false);
 
   // Members for selected team
   const [members, setMembers] = useState<TeamMember[]>([]);
@@ -218,6 +230,18 @@ export default function TeamPage() {
     if (selectedTeamId !== null) loadMembers();
   }, [selectedTeamId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const selectedTeam = teamList.find((t) => t.id === selectedTeamId) ?? null;
+
+  useEffect(() => {
+    if (!selectedTeam) return;
+    setTeamSettings({
+      name: selectedTeam.name,
+      description: selectedTeam.description ?? '',
+      discord_channel_id: selectedTeam.discord_channel_id ?? '',
+      discord_role_id: selectedTeam.discord_role_id ?? '',
+    });
+  }, [selectedTeam]);
+
   // ── Focus inline input when shown ────────────────────────────────────────
 
   useEffect(() => {
@@ -233,9 +257,15 @@ export default function TeamPage() {
     if (!name) return;
     setCreatingTeamSubmitting(true);
     try {
-      const created = await teamsApi.create(name);
+      const created = await teamsApi.create({
+        name,
+        discord_channel_id: newTeamDiscordChannelId.trim() || null,
+        discord_role_id: newTeamDiscordRoleId.trim() || null,
+      });
       toast(`Team "${created.name}" created`, 'success');
       setNewTeamName('');
+      setNewTeamDiscordChannelId('');
+      setNewTeamDiscordRoleId('');
       setCreatingTeam(false);
       await loadTeams();
       setSelectedTeamId(created.id);
@@ -251,6 +281,46 @@ export default function TeamPage() {
     if (e.key === 'Escape') {
       setCreatingTeam(false);
       setNewTeamName('');
+      setNewTeamDiscordChannelId('');
+      setNewTeamDiscordRoleId('');
+    }
+  };
+
+  const handleSaveTeamSettings = async () => {
+    if (!selectedTeam) return;
+    if (!teamSettings.name.trim()) {
+      toast('Team name is required', 'error');
+      return;
+    }
+    setTeamSettingsSaving(true);
+    try {
+      const updated = await teamsApi.update(selectedTeam.id, {
+        name: teamSettings.name.trim(),
+        description: teamSettings.description.trim() || undefined,
+        discord_channel_id: teamSettings.discord_channel_id.trim() || null,
+        discord_role_id: teamSettings.discord_role_id.trim() || null,
+      });
+      setTeamList((teams) => teams.map((team) => (
+        team.id === updated.id ? { ...team, ...updated, member_count: team.member_count } : team
+      )));
+      toast('Team settings updated', 'success');
+    } catch (e: any) {
+      toast(e.message, 'error');
+    } finally {
+      setTeamSettingsSaving(false);
+    }
+  };
+
+  const handleTestDiscordAlert = async () => {
+    if (!selectedTeam) return;
+    setDiscordTestSending(true);
+    try {
+      await teamsApi.testDiscord(selectedTeam.id);
+      toast('Discord test alert sent', 'success');
+    } catch (e: any) {
+      toast(e.message, 'error');
+    } finally {
+      setDiscordTestSending(false);
     }
   };
 
@@ -350,8 +420,6 @@ export default function TeamPage() {
 
   // ── Derived state ──────────────────────────────────────────────────────────
 
-  const selectedTeam = teamList.find((t) => t.id === selectedTeamId) ?? null;
-
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -372,7 +440,7 @@ export default function TeamPage() {
 
         {/* Inline new-team input */}
         {creatingTeam && (
-          <div className="px-3 py-2 border-b border-[#1a2540] flex items-center gap-1.5">
+          <div className="px-3 py-3 border-b border-[#1a2540] flex flex-col gap-2">
             <input
               ref={newTeamInputRef}
               value={newTeamName}
@@ -381,6 +449,20 @@ export default function TeamPage() {
               placeholder="Team name…"
               className="flex-1 bg-[#0a0f1c] border border-[#1a2540] focus:border-[#0066cc] rounded px-2 py-1.5 text-white text-sm placeholder-[#8892a4] outline-none transition-colors"
             />
+            <input
+              value={newTeamDiscordChannelId}
+              onChange={(e) => setNewTeamDiscordChannelId(e.target.value)}
+              placeholder="Discord Channel ID"
+              className="bg-[#0a0f1c] border border-[#1a2540] focus:border-[#0066cc] rounded px-2 py-1.5 text-white text-sm placeholder-[#8892a4] outline-none transition-colors"
+            />
+            <input
+              value={newTeamDiscordRoleId}
+              onChange={(e) => setNewTeamDiscordRoleId(e.target.value)}
+              placeholder="Discord Role ID (optional)"
+              className="bg-[#0a0f1c] border border-[#1a2540] focus:border-[#0066cc] rounded px-2 py-1.5 text-white text-sm placeholder-[#8892a4] outline-none transition-colors"
+            />
+            <p className="text-[11px] leading-snug text-[#8892a4]">Right-click channel - Copy Channel ID. Optional: Role ID for @team ping.</p>
+            <div className="flex items-center gap-2">
             <button
               onClick={handleCreateTeam}
               disabled={creatingTeamSubmitting || !newTeamName.trim()}
@@ -392,7 +474,12 @@ export default function TeamPage() {
               </svg>
             </button>
             <button
-              onClick={() => { setCreatingTeam(false); setNewTeamName(''); }}
+              onClick={() => {
+                setCreatingTeam(false);
+                setNewTeamName('');
+                setNewTeamDiscordChannelId('');
+                setNewTeamDiscordRoleId('');
+              }}
               title="Cancel"
               className="text-[#8892a4] hover:text-red-400 p-1 transition-colors"
             >
@@ -400,6 +487,7 @@ export default function TeamPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
+            </div>
           </div>
         )}
 
@@ -431,6 +519,9 @@ export default function TeamPage() {
                     </p>
                     <p className="text-[#8892a4] text-xs">
                       {t.member_count} {t.member_count === 1 ? 'member' : 'members'}
+                    </p>
+                    <p className={`text-[11px] ${t.discord_channel_id ? 'text-[#00aaff]' : 'text-[#667085]'}`}>
+                      Discord: {t.discord_channel_id ? 'Channel configured' : 'Not configured'}
                     </p>
                   </div>
                   {/* Delete button — visible on hover */}
@@ -475,6 +566,64 @@ export default function TeamPage() {
                 Add Member
               </button>
             </div>
+
+            <section className="bg-[#0d1525] border border-[#1a2540] rounded-xl p-4 mb-6">
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <div>
+                  <h2 className="font-heading font-semibold text-white text-sm uppercase tracking-wider">Team Discord Alerts</h2>
+                  <p className="text-[#8892a4] text-xs mt-0.5">
+                    {selectedTeam.discord_channel_id ? 'Discord channel configured' : 'Not configured'}
+                  </p>
+                </div>
+                <span className={`text-xs rounded-full px-2 py-1 border ${selectedTeam.discord_channel_id ? 'border-[#00aaff]/40 text-[#00aaff] bg-[#00aaff]/10' : 'border-[#1a2540] text-[#8892a4]'}`}>
+                  Discord {selectedTeam.discord_channel_id ? 'Configured' : 'Not configured'}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                <Input
+                  label="Team Name"
+                  value={teamSettings.name}
+                  onChange={(e) => setTeamSettings((s) => ({ ...s, name: e.target.value }))}
+                />
+                <Input
+                  label="Description"
+                  value={teamSettings.description}
+                  onChange={(e) => setTeamSettings((s) => ({ ...s, description: e.target.value }))}
+                  placeholder="Optional team description"
+                />
+                <Input
+                  label="Discord Channel ID"
+                  value={teamSettings.discord_channel_id}
+                  onChange={(e) => setTeamSettings((s) => ({ ...s, discord_channel_id: e.target.value }))}
+                  placeholder="Right-click channel - Copy Channel ID"
+                />
+                <Input
+                  label="Discord Role ID"
+                  value={teamSettings.discord_role_id}
+                  onChange={(e) => setTeamSettings((s) => ({ ...s, discord_role_id: e.target.value }))}
+                  placeholder="Optional: Role ID for @team ping"
+                />
+              </div>
+              <p className="text-xs text-[#8892a4] mt-3">
+                Enable Discord Developer Mode, then right-click the target channel and role to copy IDs.
+              </p>
+              <div className="flex flex-wrap gap-3 mt-4">
+                <button
+                  onClick={handleSaveTeamSettings}
+                  disabled={teamSettingsSaving}
+                  className="bg-[#0066cc] hover:bg-[#005bb5] disabled:opacity-50 text-white font-heading font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
+                >
+                  {teamSettingsSaving ? 'Saving...' : 'Save Team Settings'}
+                </button>
+                <button
+                  onClick={handleTestDiscordAlert}
+                  disabled={discordTestSending || !selectedTeam.discord_channel_id}
+                  className="border border-[#1a2540] hover:border-[#00aaff] disabled:opacity-50 disabled:cursor-not-allowed text-white font-heading font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
+                >
+                  {discordTestSending ? 'Sending...' : 'Test Discord Alert'}
+                </button>
+              </div>
+            </section>
 
             {/* Members grid */}
             {membersLoading ? (

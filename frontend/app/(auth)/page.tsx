@@ -64,6 +64,8 @@ function LandingInner() {
   const [signupUsername, setSignupUsername] = useState('');
   const [signupEmail, setSignupEmail] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
+  const [signupDiscordUserId, setSignupDiscordUserId] = useState('');
+  const [signupTelegramChatId, setSignupTelegramChatId] = useState('');
   const [signupLoading, setSignupLoading] = useState(false);
 
   useEffect(() => {
@@ -86,10 +88,18 @@ function LandingInner() {
     e.preventDefault();
     if (!signupUsername.trim()) { toast('Username is required', 'error'); return; }
     if (!/^[a-zA-Z0-9_-]{3,30}$/.test(signupUsername)) { toast('Username must be 3–30 characters (letters, numbers, _ or -)', 'error'); return; }
+    if (!signupDiscordUserId.trim()) { toast('Discord ID is required', 'error'); return; }
     if (signupPassword.length < 8) { toast('Password must be at least 8 characters', 'error'); return; }
     setSignupLoading(true);
     try {
-      await signup(signupName, signupUsername, signupEmail, signupPassword);
+      await signup(
+        signupName,
+        signupUsername,
+        signupEmail,
+        signupPassword,
+        signupDiscordUserId.trim(),
+        signupTelegramChatId.trim() || undefined
+      );
     } catch (err: any) {
       toast(err.message || 'Signup failed', 'error');
     } finally {
@@ -288,6 +298,16 @@ function LandingInner() {
           <div>
             <label style={labelStyle}>Password</label>
             <input type="password" required placeholder="Min 8 characters" value={signupPassword} onChange={e => setSignupPassword(e.target.value)} style={inputStyle}
+              onFocus={e => (e.target.style.borderColor = '#0066cc')} onBlur={e => (e.target.style.borderColor = '#e0e0e0')} />
+          </div>
+          <div>
+            <label style={labelStyle}>Discord ID</label>
+            <input type="text" required placeholder="e.g. 123456789012345678" value={signupDiscordUserId} onChange={e => setSignupDiscordUserId(e.target.value)} style={inputStyle}
+              onFocus={e => (e.target.style.borderColor = '#0066cc')} onBlur={e => (e.target.style.borderColor = '#e0e0e0')} />
+          </div>
+          <div>
+            <label style={labelStyle}>Telegram ID <span style={{ color: '#667085', textTransform: 'none' }}>(optional)</span></label>
+            <input type="text" placeholder="e.g. 987654321" value={signupTelegramChatId} onChange={e => setSignupTelegramChatId(e.target.value)} style={inputStyle}
               onFocus={e => (e.target.style.borderColor = '#0066cc')} onBlur={e => (e.target.style.borderColor = '#e0e0e0')} />
           </div>
           <button type="submit" disabled={signupLoading} style={{ ...submitStyle, opacity: signupLoading ? 0.7 : 1 }}>

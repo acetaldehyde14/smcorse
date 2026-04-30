@@ -5,7 +5,7 @@ const { promisify } = require('util');
 const gunzip = promisify(zlib.gunzip);
 const { query } = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
-const { notifyDriverChange, notifyLowFuel } = require('../services/notifications');
+const { notifyDriverChange, notifyLowFuel, getTeamIdForRace } = require('../services/notifications');
 const { advanceStintPlan } = require('./races');
 
 const LOW_FUEL_MINS = 20;
@@ -231,11 +231,12 @@ async function handleDriverChange(race, data, reportingUserId) {
   const nextDriver = nextDriverResult.rows[0] || null;
 
   console.log(`[Driver Change] Race ${race.id}: ${driver_name} is now in the car`);
+  const teamId = await getTeamIdForRace(race.id);
   if (stintPlanInfo?.isSameDriver) {
     const { notifyBoxedAndOut } = require('../services/notifications');
-    await notifyBoxedAndOut(driver_name, stintPlanInfo);
+    await notifyBoxedAndOut(driver_name, stintPlanInfo, teamId);
   } else {
-    await notifyDriverChange(driver_name, driverUser, nextDriver, stintPlanInfo);
+    await notifyDriverChange(driver_name, driverUser, nextDriver, stintPlanInfo, teamId);
   }
 }
 
@@ -295,7 +296,8 @@ async function handleFuelUpdate(race, data, reportingUserId) {
       const nextDriver = nextDriverResult.rows[0] || null;
 
       console.log(`[Low Fuel] Race ${race.id}: ~${Math.round(mins_remaining)} mins remaining`);
-      await notifyLowFuel(mins_remaining, fuel_level, nextDriver);
+      const teamId = await getTeamIdForRace(race.id);
+      await notifyLowFuel(mins_remaining, fuel_level, nextDriver, teamId);
     }
   }
 }
