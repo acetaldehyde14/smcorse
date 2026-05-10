@@ -18,6 +18,12 @@ npm run migrate    # Migrate users from SQLite to PostgreSQL (one-time)
 
 The server runs on port 3000 by default (configurable via PORT environment variable). Accessible on local network at `http://<LAN_IP>:3000`.
 
+**Production: always use PM2 only — never `npm run dev` alongside PM2.** Running both simultaneously causes `EADDRINUSE` on port 3000; nodemon crashes immediately and the stale PM2 instance serves all traffic. To restart cleanly:
+```bash
+pm2 stop all
+pm2 start ecosystem.config.js
+```
+
 **Database Setup (canonical — use this for new setups):**
 ```bash
 psql -U postgres -c "CREATE DATABASE iracing_coach;"
@@ -90,9 +96,10 @@ Static files in `public/`:
 - `team.html` - Team roster management and stint rotation planning
 - `race.html` - Live race tracker: race management, stint roster, real-time status, event log, notification settings
 - `public/logos/` - Partner logos (Swift Display, SimTeam, RaceData, RaceData.AI)
-- `public/iracing-enduro-client/` - Python desktop client for polling iRacing telemetry
 
 All HTML files contain inline CSS and JavaScript. No build process needed.
+
+**Desktop client:** The Python desktop client (iRacing telemetry poller, coaching overlay, GUI) is maintained in a separate repository: https://github.com/acetaldehyde14/endurotool. It is not part of this codebase.
 
 **Design Theme:** Blue/white professional (#0066cc primary, #00aaff accent, #0a0f1c dark). Montserrat (headings) + Rajdhani (body) fonts.
 

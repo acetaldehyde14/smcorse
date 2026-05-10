@@ -8,6 +8,9 @@ module.exports = {
       autorestart: true,
       watch: false,
       max_memory_restart: '200M',
+      max_restarts: 10,
+      restart_delay: 5000,
+      min_uptime: '10s',
       env: {
         NODE_ENV: 'production',
         PORT: 3000
@@ -26,6 +29,9 @@ module.exports = {
       autorestart: true,
       watch: false,
       max_memory_restart: '300M',
+      max_restarts: 10,
+      restart_delay: 5000,
+      min_uptime: '10s',
       env: {
         NODE_ENV: 'production',
         PORT: 3001

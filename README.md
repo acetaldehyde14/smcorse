@@ -37,8 +37,7 @@ smcorse/
 ├── public/
 │   ├── assistant.html         # AI Race Engineer chat (legacy HTML)
 │   ├── coaching-voice/        # Pre-synthesized WAV coaching cues
-│   ├── lap-analysis.html      # Standalone JWT-auth lap analysis tool
-│   └── iracing-enduro-client/ # Python desktop telemetry client
+│   └── lap-analysis.html      # Standalone JWT-auth lap analysis tool
 ├── migrations/                # Numbered SQL migrations (001–009)
 ├── scripts/                   # DB utilities, voice pack builder
 └── uploads/                   # Telemetry files (ibt, blap, olap)
@@ -100,11 +99,8 @@ Full per-lap coaching pipeline designed for desktop client integration. All deci
 - Race calendar with countdown timers
 - Notification settings (Telegram chat ID, Discord webhook)
 
-### Desktop Client (`public/iracing-enduro-client/`)
-Python app that polls iRacing memory-mapped data and streams telemetry to the API:
-- Driver change detection and fuel level monitoring
-- Sends compressed telemetry batches at ~15 Hz
-- Reads `CarIdxX`/`CarIdxY` and `YawRate` for GPS-quality track maps when available
+### Desktop Client
+The Python desktop client is maintained in a separate repository: [endurotool](https://github.com/acetaldehyde14/endurotool). It polls iRacing memory-mapped data and streams telemetry to this API.
 
 ---
 

@@ -10,7 +10,7 @@ If anything needs to be known about the frontend app, use https://github.com/ace
 ## Project Structure & Module Organization
 `server.js` is the Express entry point for the API on port `3000` and listens on `0.0.0.0` for LAN access. Backend code lives in `src/`: `routes/` for HTTP endpoints, `services/` for telemetry, coaching, notifications, TTS, and parsing logic, `middleware/` for auth and uploads, and `config/` for database and model clients.
 
-The Next.js app lives in `frontend/` and runs on port `3001`. App Router pages are under `frontend/app/`, shared UI in `frontend/components/`, and client helpers in `frontend/lib/` and `frontend/store/`. Static and legacy HTML assets live in `public/`, including logos, avatars, coaching voice assets, and the `public/iracing-enduro-client/` desktop client.
+The Next.js app lives in `frontend/` and runs on port `3001`. App Router pages are under `frontend/app/`, shared UI in `frontend/components/`, and client helpers in `frontend/lib/` and `frontend/store/`. Static and legacy HTML assets live in `public/`, including logos, avatars, and coaching voice assets. The Python desktop client is maintained separately at https://github.com/acetaldehyde14/endurotool.
 
 SQL migrations are in `migrations/`, backfills are in `migrations/backfill/`, supporting scripts are in `scripts/`, and architecture notes are in `docs/`.
 
