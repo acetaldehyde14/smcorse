@@ -108,7 +108,12 @@ export interface TeamMember {
 export interface Driver {
   id: number;
   username: string;
+  email?: string;
   iracing_name?: string;
+  discord_user_id?: string;
+  telegram_chat_id?: string;
+  has_discord?: boolean;
+  has_telegram?: boolean;
 }
 
 // ── Race Events (Calendar) ─────────────────────────────────────
@@ -123,6 +128,18 @@ export interface RaceCalendarEvent {
   signup_open: boolean;
   created_by?: number;
   created_by_username?: string;
+  created_at: string;
+}
+
+// ── Car Setups ────────────────────────────────────────────────────────────────
+export interface Setup {
+  id: number;
+  track_name: string;
+  car_name: string;
+  label: string;
+  notes?: string;
+  filename: string;
+  uploaded_by?: number;
   created_at: string;
 }
 
@@ -303,6 +320,8 @@ export interface StintConfig {
   race_date?: string;
   duration_hours?: number;
   start_time?: string;
+  start_time_utc?: string;
+  start_timezone?: string;
   min_stint_mins?: number;
   max_stint_mins?: number;
   selected_drivers?: number[];

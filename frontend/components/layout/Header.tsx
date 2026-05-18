@@ -12,6 +12,7 @@ const navLinks = [
   { href: '/race',          label: 'Race (Teams)' },
   { href: '/stint-planner', label: 'Stint Planner' },
   { href: '/calendar',      label: 'Calendar' },
+  { href: '/setups',        label: 'Setups' },
   { href: '/team',          label: 'Team' },
   { href: '/lap-analysis.html', label: 'Laps' },
 ];

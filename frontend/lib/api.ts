@@ -3,7 +3,7 @@ import type {
   Team, TeamMember, Driver, RaceCalendarEvent,
   Session, Lap, StintPlannerSession, RaceStintPlan, StintPlanAdvance, RaceLap,
   LiveFrame, LiveSessionSummary, LapFeatures, LapChannels, AllLap,
-  CoachingProfile, CoachingObservationsResponse
+  CoachingProfile, CoachingObservationsResponse, Setup
 } from './types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? '';
@@ -26,7 +26,13 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 function get<T>(path: string) {
-  return request<T>(path);
+  const separator = path.includes('?') ? '&' : '?';
+  return request<T>(`${path}${separator}_=${Date.now()}`, {
+    cache: 'no-store',
+    headers: {
+      'Cache-Control': 'no-cache',
+    },
+  });
 }
 function post<T>(path: string, body: unknown) {
   return request<T>(path, { method: 'POST', body: JSON.stringify(body) });
@@ -154,13 +160,49 @@ export const coaching = {
 export const stintPlanner = {
   list: () => get<StintPlannerSession[]>('/api/team/stint-sessions'),
   get: (id: number) => get<StintPlannerSession>(`/api/team/stint-sessions/${id}`),
-  create: (name: string) => post<StintPlannerSession>('/api/team/stint-sessions', { name }),
+  create: (data: { name: string; team_id?: number | null }) => post<StintPlannerSession>('/api/team/stint-sessions', data),
   update: (id: number, data: Partial<StintPlannerSession>) =>
     put<StintPlannerSession>(`/api/team/stint-sessions/${id}`, data),
   delete: (id: number) => del<{ ok: boolean }>(`/api/team/stint-sessions/${id}`),
   aiPlan: (id: number, userPrompt?: string) => post<{ plan: StintPlannerSession['plan']; explanation: string; blockMinutes: number; numBlocks: number }>(
     '/api/team/stint-planner/ai-plan', { session_id: id, userPrompt: userPrompt || '' }
   ),
+};
+
+// ── Setups ────────────────────────────────────────────────────
+export const setups = {
+  list: (track?: string, car?: string) => {
+    const params = new URLSearchParams();
+    if (track) params.set('track', track);
+    if (car) params.set('car', car);
+    const qs = params.toString();
+    return get<Setup[]>(`/api/setups${qs ? `?${qs}` : ''}`);
+  },
+
+  upload: (formData: FormData) =>
+    fetch(`${API_BASE}/api/setups`, {
+      method: 'POST',
+      credentials: 'include',
+      body: formData,
+    }).then(async (res) => {
+      if (!res.ok) {
+        let msg = `HTTP ${res.status}`;
+        try { msg = (await res.json()).error ?? msg; } catch { /* noop */ }
+        throw new Error(msg);
+      }
+      return res.json() as Promise<Setup>;
+    }),
+
+  download: (id: number, filename: string) => {
+    const a = document.createElement('a');
+    a.href = `${API_BASE}/api/setups/${id}/download`;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  },
+
+  delete: (id: number) => del<{ ok: boolean }>(`/api/setups/${id}`),
 };
 
 // ── Admin ─────────────────────────────────────────────────────

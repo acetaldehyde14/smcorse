@@ -13,6 +13,10 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// The app runs behind a proxy in production. Trust one hop so rate-limit keys
+// use the real client IP and express-rate-limit does not reject X-Forwarded-For.
+app.set('trust proxy', 1);
+
 // PostgreSQL database connection
 const { pool, query } = require('./src/config/database');
 const llamaClient = require('./src/config/llama');
@@ -27,6 +31,8 @@ const teamsRoutes = require('./src/routes/teams');
 const racesRoutes = require('./src/routes/races');
 const iracingRoutes = require('./src/routes/iracing');
 const coachingRoutes = require('./src/routes/coaching');
+const downloadsRoutes = require('./src/routes/downloads');
+const setupsRoutes = require('./src/routes/setups');
 const { handleUploadError } = require('./src/middleware/upload');
 const { authenticateToken } = require('./src/middleware/auth');
 const { initTelegram, initDiscord, shutdownBots, startStintAlerts, stopStintAlerts } = require('./src/services/notifications');
@@ -59,10 +65,28 @@ app.use(session({
 }));
 
 // Rate limiters
-const telemLimiter = rateLimit({ windowMs: 60_000, max: 1200, standardHeaders: true, legacyHeaders: false });
-const apiLimiter   = rateLimit({ windowMs: 60_000, max: 300,  standardHeaders: true, legacyHeaders: false });
+const isHighFrequencyApi = (req) => {
+  const url = req.originalUrl || req.url || '';
+  return (
+    url.startsWith('/api/telemetry/live') ||
+    url.startsWith('/api/iracing/telemetry') ||
+    url.startsWith('/api/iracing/event') ||
+    url.startsWith('/api/iracing/status')
+  );
+};
+
+const telemLimiter = rateLimit({ windowMs: 60_000, max: 3000, standardHeaders: true, legacyHeaders: false });
+const apiLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 600,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: isHighFrequencyApi
+});
 app.use('/api/telemetry/live', telemLimiter);
 app.use('/api/iracing/telemetry', telemLimiter);
+app.use('/api/iracing/event', telemLimiter);
+app.use('/api/iracing/status', telemLimiter);
 app.use('/api/', apiLimiter);
 
 // Request logging
@@ -288,6 +312,8 @@ app.use('/api/teams', teamsRoutes);
 app.use('/api/races', racesRoutes);
 app.use('/api/iracing', iracingRoutes);
 app.use('/api/coaching', attachUserId, coachingRoutes);
+app.use('/api/downloads', downloadsRoutes);
+app.use('/api/setups', authenticateToken, setupsRoutes);
 
 // Serve uploaded files (protected)
 app.use('/uploads', requireAuth, express.static(path.join(__dirname, 'uploads')));
@@ -436,7 +462,7 @@ app.post('/api/client/register', authenticateToken, async (req, res) => {
 app.get('/api/client/version', (req, res) => {
   res.json({
     version: '1.0.5',
-    download_url: 'https://smcorse.com/downloads/iRacingEnduro-Setup.exe',
+    download_url: 'https://smcorse.com/api/downloads/iRacingEnduro-Setup.exe',
     changelog: 'Login and fixed updater'
   });
 });
@@ -487,7 +513,7 @@ app.use((req, res) => {
 // START SERVER
 // ============================================
 
-app.listen(PORT, '0.0.0.0', () => {
+if (require.main === module) app.listen(PORT, '0.0.0.0', () => {
   // Get local network IP
   const os = require('os');
   const interfaces = os.networkInterfaces();
