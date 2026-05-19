@@ -10,6 +10,8 @@
     "db:migrate": "node scripts/run-migrations.js",
     "db:migrate:dry": "node scripts/run-migrations.js --dry-run",
     "db:migrate:backfill": "node scripts/run-migrations.js --backfill",
+    "build:public": "esbuild public/ts/assistant.ts public/ts/lap-analysis.ts --bundle --outdir=public/js --target=es2020 --platform=browser --format=iife",
+    "typecheck:public": "tsc --project public/tsconfig.json",
     "test": "dotenv -e .env.test -- jest",
     "test:watch": "dotenv -e .env.test -- jest --watch"
   },
@@ -36,9 +38,11 @@
   "devDependencies": {
     "better-sqlite3": "^12.6.2",
     "dotenv-cli": "^11.0.0",
+    "esbuild": "^0.28.0",
     "jest": "^30.3.0",
     "nodemon": "^3.0.2",
-    "supertest": "^7.2.2"
+    "supertest": "^7.2.2",
+    "typescript": "^5.9.3"
   },
   "engines": {
     "node": ">=18.0.0"
