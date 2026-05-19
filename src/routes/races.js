@@ -4,7 +4,7 @@ const { pool, query } = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 const { notifyDriverChange, notifyBoxedAndOut, notifyLowFuel, getTeamIdForRace } = require('../services/notifications');
 
-const BLOCK_MINS = 45;
+const DEFAULT_BLOCK_MINS = 45;
 
 // ── Helpers ────────────────────────────────────────────────────
 
@@ -12,18 +12,42 @@ function getBlockDriverName(block) {
   return (block.driver_name || block.driver || '').trim();
 }
 
-function getBlockEndIndex(block) {
+function getBlockMinutes(config) {
+  return Math.max(1, Number(config?.min_stint_mins) || DEFAULT_BLOCK_MINS);
+}
+
+function getBlockEndIndex(block, blockMins = DEFAULT_BLOCK_MINS) {
   if (block.endBlock != null) return block.endBlock;
   if (block.start_hour != null && block.duration_hours != null) {
-    return Math.round((block.start_hour + block.duration_hours) * 60 / BLOCK_MINS);
+    return Math.round((block.start_hour + block.duration_hours) * 60 / blockMins);
   }
   return null;
 }
 
-function getBlockStartIndex(block) {
+function getBlockStartIndex(block, blockMins = DEFAULT_BLOCK_MINS) {
   if (block.startBlock != null) return block.startBlock;
-  if (block.start_hour != null) return Math.round(block.start_hour * 60 / BLOCK_MINS);
+  if (block.start_hour != null) return Math.round(block.start_hour * 60 / blockMins);
   return 0;
+}
+
+function blockIndexToClock(blocks, blockMins) {
+  const totalMins = blocks * blockMins;
+  const h = Math.floor(totalMins / 60) % 24;
+  const m = totalMins % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+function shiftRemainingPlan(plan, fromIndex, deltaBlocks, blockMins) {
+  if (!deltaBlocks) return;
+  for (let i = fromIndex; i < plan.length; i++) {
+    if (plan[i].actual_end_at) continue;
+    const bStart = getBlockStartIndex(plan[i], blockMins);
+    const bEnd = getBlockEndIndex(plan[i], blockMins) ?? (bStart + 1);
+    plan[i].startBlock = Math.max(0, bStart + deltaBlocks);
+    plan[i].endBlock = Math.max(plan[i].startBlock + 1, bEnd + deltaBlocks);
+    plan[i].startTime = blockIndexToClock(plan[i].startBlock, blockMins);
+    plan[i].endTime = blockIndexToClock(plan[i].endBlock, blockMins);
+  }
 }
 
 // Advance (or extend) the stint plan on driver change.
@@ -37,6 +61,8 @@ async function advanceStintPlan(race, newDriverName, raceId) {
     if (!sessionR.rows[0]) return null;
 
     const session      = sessionR.rows[0];
+    const config       = typeof session.config === 'string' ? JSON.parse(session.config) : (session.config || {});
+    const blockMins    = getBlockMinutes(config);
     const state        = stateR.rows[0] || {};
     const plan         = Array.isArray(session.plan) ? [...session.plan].map(b => ({ ...b })) : [];
     const currentIndex = state.current_stint_index || 0;
@@ -54,9 +80,9 @@ async function advanceStintPlan(race, newDriverName, raceId) {
       // Compute deviation vs plan
       let deviationMins = null;
       if (currentBlock && race.started_at) {
-        const endIdx = getBlockEndIndex(currentBlock);
+        const endIdx = getBlockEndIndex(currentBlock, blockMins);
         if (endIdx !== null) {
-          const plannedEndMs = new Date(race.started_at).getTime() + endIdx * BLOCK_MINS * 60 * 1000;
+          const plannedEndMs = new Date(race.started_at).getTime() + endIdx * blockMins * 60 * 1000;
           deviationMins = Math.round((plannedEndMs - now.getTime()) / 60000);
         }
       }
@@ -64,11 +90,18 @@ async function advanceStintPlan(race, newDriverName, raceId) {
       // Mark current block as ended
       if (currentBlock) {
         plan[currentIndex].actual_end_at = now.toISOString();
+        plan[currentIndex].deviation_mins = deviationMins;
       }
 
       // Advance to next block (always +1 for same driver)
       let nextIndex = currentIndex + 1;
       if (nextIndex >= plan.length) nextIndex = Math.max(plan.length - 1, 0);
+
+      if (race.started_at && plan[nextIndex]?.startBlock != null) {
+        const plannedStartMs = new Date(race.started_at).getTime() + plan[nextIndex].startBlock * blockMins * 60 * 1000;
+        const deltaBlocks = Math.round((now.getTime() - plannedStartMs) / (blockMins * 60 * 1000));
+        shiftRemainingPlan(plan, nextIndex, deltaBlocks, blockMins);
+      }
 
       // Mark next block as started
       if (plan[nextIndex] && nextIndex !== currentIndex) {
@@ -83,7 +116,7 @@ async function advanceStintPlan(race, newDriverName, raceId) {
       if (plan[nextIndex]) {
         const b = plan[nextIndex];
         if (b.endBlock != null && b.startBlock != null) {
-          plannedDurationMins = (b.endBlock - b.startBlock) * BLOCK_MINS;
+          plannedDurationMins = (b.endBlock - b.startBlock) * blockMins;
         } else if (b.duration_hours != null) {
           plannedDurationMins = Math.round(b.duration_hours * 60);
         }
@@ -108,9 +141,9 @@ async function advanceStintPlan(race, newDriverName, raceId) {
     // Compute deviation vs plan (how early/late vs planned pit time)
     let deviationMins = null;
     if (currentBlock && race.started_at) {
-      const endIdx = getBlockEndIndex(currentBlock);
-      if (endIdx !== null) {
-        const plannedEndMs = new Date(race.started_at).getTime() + endIdx * BLOCK_MINS * 60 * 1000;
+        const endIdx = getBlockEndIndex(currentBlock, blockMins);
+        if (endIdx !== null) {
+        const plannedEndMs = new Date(race.started_at).getTime() + endIdx * blockMins * 60 * 1000;
         deviationMins = Math.round((plannedEndMs - now.getTime()) / 60000); // positive = early
       }
     }
@@ -118,6 +151,7 @@ async function advanceStintPlan(race, newDriverName, raceId) {
     // Mark current block as ended
     if (currentBlock) {
       plan[currentIndex].actual_end_at = now.toISOString();
+      plan[currentIndex].deviation_mins = deviationMins;
     }
 
     // Always advance exactly one step — never skip blocks by searching for a name match
@@ -125,27 +159,9 @@ async function advanceStintPlan(race, newDriverName, raceId) {
 
     // Adjust remaining block times if the pit happened late/early
     if (race.started_at && plan[nextIndex]?.startBlock != null) {
-      const plannedStartMs = new Date(race.started_at).getTime() + plan[nextIndex].startBlock * BLOCK_MINS * 60 * 1000;
-      const deltaBlocks    = Math.round((now.getTime() - plannedStartMs) / (BLOCK_MINS * 60 * 1000));
-      if (deltaBlocks !== 0) {
-        for (let i = nextIndex; i < plan.length; i++) {
-          if (!plan[i].actual_end_at) { // only shift blocks not yet completed
-            const bStart = getBlockStartIndex(plan[i]);
-            const bEnd   = getBlockEndIndex(plan[i]) ?? (bStart + 1);
-            plan[i].startBlock = bStart + deltaBlocks;
-            plan[i].endBlock   = bEnd   + deltaBlocks;
-            // Recompute display times
-            const toTime = (blocks) => {
-              const totalMins = blocks * BLOCK_MINS;
-              const h = Math.floor(totalMins / 60) % 24;
-              const m = totalMins % 60;
-              return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
-            };
-            plan[i].startTime = toTime(plan[i].startBlock);
-            plan[i].endTime   = toTime(plan[i].endBlock);
-          }
-        }
-      }
+      const plannedStartMs = new Date(race.started_at).getTime() + plan[nextIndex].startBlock * blockMins * 60 * 1000;
+      const deltaBlocks    = Math.round((now.getTime() - plannedStartMs) / (blockMins * 60 * 1000));
+      shiftRemainingPlan(plan, nextIndex, deltaBlocks, blockMins);
     }
 
     // Mark next block as started
@@ -162,7 +178,7 @@ async function advanceStintPlan(race, newDriverName, raceId) {
     if (plan[nextIndex]) {
       const b = plan[nextIndex];
       if (b.endBlock != null && b.startBlock != null) {
-        plannedDurationMins = (b.endBlock - b.startBlock) * BLOCK_MINS;
+        plannedDurationMins = (b.endBlock - b.startBlock) * blockMins;
       } else if (b.duration_hours != null) {
         plannedDurationMins = Math.round(b.duration_hours * 60);
       }
@@ -231,6 +247,52 @@ router.post('/', authenticateToken, async (req, res) => {
     res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error('[Races] create error:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── Race Events (Calendar) ──────────────────────────────────────
+
+// GET /api/races/events — list upcoming race events
+router.get('/events', authenticateToken, async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT re.*, u.username AS created_by_username
+       FROM race_events re
+       LEFT JOIN users u ON u.id = re.created_by
+       ORDER BY re.race_date ASC`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('[RaceEvents] list error:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/races/events — create a race event
+router.post('/events', authenticateToken, async (req, res) => {
+  const { name, track, series, car_class, race_date, duration_hours } = req.body;
+  if (!name || !race_date) return res.status(400).json({ error: 'name and race_date are required' });
+  try {
+    const result = await query(
+      `INSERT INTO race_events (name, track, series, car_class, race_date, duration_hours, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [name, track || null, series || null, car_class || null, race_date, duration_hours || null, req.user.id]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('[RaceEvents] create error:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// DELETE /api/races/events/:id — delete a race event
+router.delete('/events/:id', authenticateToken, async (req, res) => {
+  try {
+    await query('DELETE FROM race_events WHERE id = $1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[RaceEvents] delete error:', err.message);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -327,6 +389,7 @@ router.post('/:id/stint-plan', authenticateToken, async (req, res) => {
 // GET /api/races/:id/stint-plan — get the linked plan with current progress
 router.get('/:id/stint-plan', authenticateToken, async (req, res) => {
   try {
+    res.set('Cache-Control', 'no-store');
     const raceR = await query('SELECT * FROM races WHERE id = $1', [req.params.id]);
     if (raceR.rowCount === 0) return res.status(404).json({ error: 'Race not found' });
     const race = raceR.rows[0];
@@ -473,7 +536,19 @@ router.post('/:id/event', authenticateToken, async (req, res) => {
         query('SELECT * FROM race_state WHERE race_id = $1', [race.id]),
       ]);
 
-      // Find next driver in stint roster
+      // Find next driver from adjusted stint plan first, then fall back to roster.
+      let planNextDriver = null;
+      if (stintPlanInfo?.nextNextDriverName) {
+        const planNextR = await query(
+          `SELECT *
+           FROM users
+           WHERE LOWER(iracing_name) = LOWER($1) OR LOWER(username) = LOWER($1)
+           LIMIT 1`,
+          [stintPlanInfo.nextNextDriverName]
+        );
+        planNextDriver = planNextR.rows[0] || null;
+      }
+
       const rosterR = await query(
         `SELECT sr.*, u.* FROM stint_roster sr
          JOIN users u ON u.id = sr.driver_user_id
@@ -484,9 +559,9 @@ router.post('/:id/event', authenticateToken, async (req, res) => {
       const currentIdx = roster.findIndex(r =>
         (r.iracing_name || r.username || '').toLowerCase() === name.toLowerCase()
       );
-      const nextRosterDriver = currentIdx >= 0 && currentIdx < roster.length - 1
+      const nextRosterDriver = planNextDriver || (currentIdx >= 0 && currentIdx < roster.length - 1
         ? roster[currentIdx + 1]
-        : null;
+        : null);
 
       const driverUser = driverUserR.rows[0] || null;
       const teamId = await getTeamIdForRace(race.id);
@@ -591,52 +666,6 @@ router.get('/:id/events', authenticateToken, async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error('[Races] events error:', err.message);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// ── Race Events (Calendar) ──────────────────────────────────────
-
-// GET /api/races/events — list upcoming race events
-router.get('/events', authenticateToken, async (req, res) => {
-  try {
-    const result = await query(
-      `SELECT re.*, u.username AS created_by_username
-       FROM race_events re
-       LEFT JOIN users u ON u.id = re.created_by
-       ORDER BY re.race_date ASC`
-    );
-    res.json(result.rows);
-  } catch (err) {
-    console.error('[RaceEvents] list error:', err.message);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// POST /api/races/events — create a race event
-router.post('/events', authenticateToken, async (req, res) => {
-  const { name, track, series, car_class, race_date, duration_hours } = req.body;
-  if (!name || !race_date) return res.status(400).json({ error: 'name and race_date are required' });
-  try {
-    const result = await query(
-      `INSERT INTO race_events (name, track, series, car_class, race_date, duration_hours, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [name, track || null, series || null, car_class || null, race_date, duration_hours || null, req.user.id]
-    );
-    res.status(201).json(result.rows[0]);
-  } catch (err) {
-    console.error('[RaceEvents] create error:', err.message);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// DELETE /api/races/events/:id — delete a race event
-router.delete('/events/:id', authenticateToken, async (req, res) => {
-  try {
-    await query('DELETE FROM race_events WHERE id = $1', [req.params.id]);
-    res.json({ ok: true });
-  } catch (err) {
-    console.error('[RaceEvents] delete error:', err.message);
     res.status(500).json({ error: 'Server error' });
   }
 });

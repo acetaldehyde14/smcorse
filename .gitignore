@@ -24,3 +24,16 @@ users.db
 # Local tooling and archives
 .claude/
 iracing-coach.tar.gz
+
+# Temp scripts
+scripts/tmp-*.js
+server-old.js
+
+# Binary artifacts
+*.zip
+public/downloads/
+Screenshot*.png
+
+# Test output
+frontend/playwright-report/
+frontend/test-results/

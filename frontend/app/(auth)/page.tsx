@@ -22,6 +22,16 @@ const features = [
   { title: 'Progress Tracking', desc: 'Monitor your improvement over time with detailed performance analytics and metrics.' },
 ];
 
+interface DownloadFile {
+  id: string;
+  title: string;
+  description?: string;
+  originalName: string;
+  size: number;
+  uploadedAt: string;
+  url: string;
+}
+
 function NavBtn({ label, onClick }: { label: string; onClick: () => void }) {
   const [hovered, setHovered] = useState(false);
   return (
@@ -67,10 +77,35 @@ function LandingInner() {
   const [signupDiscordUserId, setSignupDiscordUserId] = useState('');
   const [signupTelegramChatId, setSignupTelegramChatId] = useState('');
   const [signupLoading, setSignupLoading] = useState(false);
+  const [downloads, setDownloads] = useState<DownloadFile[]>([]);
+  const [downloadTitle, setDownloadTitle] = useState('');
+  const [downloadDescription, setDownloadDescription] = useState('');
+  const [downloadFile, setDownloadFile] = useState<File | null>(null);
+  const [downloadUploading, setDownloadUploading] = useState(false);
 
   useEffect(() => {
-    if (!isLoading && user) router.replace('/dashboard');
+    if (!isLoading && user && window.location.hash !== '#downloads') router.replace('/dashboard');
   }, [user, isLoading, router]);
+
+  const loadDownloads = async () => {
+    try {
+      const res = await fetch('/api/downloads', { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to load downloads');
+      const data = await res.json();
+      setDownloads(Array.isArray(data.files) ? data.files : []);
+    } catch (err: any) {
+      toast(err.message || 'Failed to load downloads', 'error');
+    }
+  };
+
+  useEffect(() => {
+    loadDownloads();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const scrollToDownloads = () => {
+    window.location.hash = 'downloads';
+    document.getElementById('downloads')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,6 +140,46 @@ function LandingInner() {
     } finally {
       setSignupLoading(false);
     }
+  };
+
+  const handleDownloadUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!downloadFile) { toast('Choose a file to upload', 'error'); return; }
+
+    const form = new FormData();
+    form.append('file', downloadFile);
+    form.append('title', downloadTitle.trim() || downloadFile.name);
+    form.append('description', downloadDescription.trim());
+
+    setDownloadUploading(true);
+    try {
+      const res = await fetch('/api/downloads', {
+        method: 'POST',
+        credentials: 'include',
+        body: form,
+      });
+      if (!res.ok) {
+        let message = `Upload failed (${res.status})`;
+        try { message = (await res.json()).error || message; } catch {}
+        throw new Error(message);
+      }
+      setDownloadTitle('');
+      setDownloadDescription('');
+      setDownloadFile(null);
+      await loadDownloads();
+      toast('Download uploaded', 'success');
+    } catch (err: any) {
+      toast(err.message || 'Upload failed', 'error');
+    } finally {
+      setDownloadUploading(false);
+    }
+  };
+
+  const formatBytes = (bytes: number) => {
+    if (!bytes) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+    return `${(bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
   };
 
   const inputStyle: React.CSSProperties = {
@@ -152,6 +227,7 @@ function LandingInner() {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/img/sm_corse_only_blue.png" alt="SM CORSE" style={{ height: 60, width: 'auto', filter: 'brightness(0) invert(1)' }} />
             <nav style={{ display: 'flex', gap: '1rem' }}>
+              <NavBtn label="Downloads" onClick={scrollToDownloads} />
               <NavBtn label="Login" onClick={() => setLoginOpen(true)} />
               <NavBtn label="Join Team" onClick={() => setSignupOpen(true)} />
             </nav>
@@ -190,6 +266,12 @@ function LandingInner() {
                 >
                   Team Login
                 </button>
+                <button
+                  onClick={scrollToDownloads}
+                  style={{ padding: '1.2rem 2.5rem', background: 'rgba(255,255,255,0.12)', border: '2px solid rgba(255,255,255,0.45)', color: '#fff', fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: '1.1rem', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '1.5px', borderRadius: 4 }}
+                >
+                  Downloads
+                </button>
               </div>
             </div>
 
@@ -225,6 +307,62 @@ function LandingInner() {
       </div>
 
       {/* ── PARTNERS ─────────────────────────────────────────── */}
+      <div id="downloads" style={{ background: '#fff', padding: '5rem 2rem' }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'end', gap: '2rem', flexWrap: 'wrap', marginBottom: '2rem' }}>
+            <div>
+              <p style={{ color: '#0066cc', fontFamily: "'Montserrat',sans-serif", fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>Downloads</p>
+              <h2 style={{ fontFamily: "'Montserrat',sans-serif", fontSize: '2.5rem', fontWeight: 800, color: '#0a0f1c', textTransform: 'uppercase', margin: 0 }}>Team Files & Tools</h2>
+              <p style={{ marginTop: 12, color: '#536173', fontSize: '1.1rem', maxWidth: 620 }}>
+                Get the latest SM CORSE tools, installers, setup packs, documents, and shared race files.
+              </p>
+            </div>
+            <span style={{ color: user?.is_admin ? '#0f8a4b' : '#667085', background: user?.is_admin ? '#e8f8ef' : '#f3f5f7', border: `1px solid ${user?.is_admin ? '#b7ebc8' : '#d8dee6'}`, padding: '0.6rem 0.9rem', borderRadius: 999, fontWeight: 700 }}>
+              {user?.is_admin ? 'Admin upload enabled' : 'Public downloads'}
+            </span>
+          </div>
+
+          {user?.is_admin && (
+            <form onSubmit={handleDownloadUpload} style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr auto', gap: '1rem', alignItems: 'end', background: '#0a0f1c', border: '1px solid #1a2540', borderRadius: 14, padding: '1.2rem', marginBottom: '2rem' }}>
+              <div>
+                <label style={{ ...labelStyle, color: '#aeb8c7' }}>Title</label>
+                <input value={downloadTitle} onChange={e => setDownloadTitle(e.target.value)} placeholder="e.g. iRacing Enduro Client" style={{ ...inputStyle, background: '#10182a', borderColor: '#24314f', color: '#fff' }} />
+              </div>
+              <div>
+                <label style={{ ...labelStyle, color: '#aeb8c7' }}>Description</label>
+                <input value={downloadDescription} onChange={e => setDownloadDescription(e.target.value)} placeholder="Optional short note" style={{ ...inputStyle, background: '#10182a', borderColor: '#24314f', color: '#fff' }} />
+              </div>
+              <div>
+                <label style={{ ...labelStyle, color: '#aeb8c7' }}>File</label>
+                <input type="file" onChange={e => setDownloadFile(e.target.files?.[0] ?? null)} style={{ ...inputStyle, background: '#10182a', borderColor: '#24314f', color: '#fff', maxWidth: 260 }} />
+              </div>
+              <button type="submit" disabled={downloadUploading} style={{ ...submitStyle, marginTop: 0, opacity: downloadUploading ? 0.6 : 1, gridColumn: '1 / -1' }}>
+                {downloadUploading ? 'Uploading...' : 'Upload Download'}
+              </button>
+            </form>
+          )}
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: '1rem' }}>
+            {downloads.length === 0 ? (
+              <div style={{ gridColumn: '1 / -1', border: '1px dashed #cbd5e1', borderRadius: 12, padding: '2rem', textAlign: 'center', color: '#667085' }}>
+                No downloads uploaded yet.
+              </div>
+            ) : downloads.map(file => (
+              <a key={file.id} href={file.url} download style={{ display: 'block', textDecoration: 'none', color: 'inherit', background: '#f8fafc', border: '1px solid #dbe3ee', borderRadius: 14, padding: '1.2rem', boxShadow: '0 8px 24px rgba(15,23,42,0.06)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', marginBottom: '0.8rem' }}>
+                  <strong style={{ fontFamily: "'Montserrat',sans-serif", color: '#0a0f1c', fontSize: '1rem' }}>{file.title || file.originalName}</strong>
+                  <span style={{ color: '#0066cc', fontWeight: 800 }}>↓</span>
+                </div>
+                {file.description && <p style={{ color: '#536173', margin: '0 0 0.8rem', lineHeight: 1.5 }}>{file.description}</p>}
+                <p style={{ color: '#7b8794', fontSize: '0.9rem', margin: 0 }}>
+                  {formatBytes(file.size)} · {new Date(file.uploadedAt).toLocaleDateString()}
+                </p>
+              </a>
+            ))}
+          </div>
+        </div>
+      </div>
+
       <div style={{ background: '#0a0f1c', padding: '4rem 2rem' }}>
         <div style={{ maxWidth: 1400, margin: '0 auto', textAlign: 'center' }}>
           <h2 style={{ fontFamily: "'Montserrat',sans-serif", fontSize: '1.6rem', fontWeight: 700, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: 3, marginBottom: '2.5rem' }}>

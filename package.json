@@ -9,7 +9,9 @@
     "migrate": "node scripts/migrate-users.js",
     "db:migrate": "node scripts/run-migrations.js",
     "db:migrate:dry": "node scripts/run-migrations.js --dry-run",
-    "db:migrate:backfill": "node scripts/run-migrations.js --backfill"
+    "db:migrate:backfill": "node scripts/run-migrations.js --backfill",
+    "test": "dotenv -e .env.test -- jest",
+    "test:watch": "dotenv -e .env.test -- jest --watch"
   },
   "dependencies": {
     "axios": "^1.6.2",
@@ -33,7 +35,10 @@
   },
   "devDependencies": {
     "better-sqlite3": "^12.6.2",
-    "nodemon": "^3.0.2"
+    "dotenv-cli": "^11.0.0",
+    "jest": "^30.3.0",
+    "nodemon": "^3.0.2",
+    "supertest": "^7.2.2"
   },
   "engines": {
     "node": ">=18.0.0"

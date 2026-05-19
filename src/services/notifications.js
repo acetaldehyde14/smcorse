@@ -53,6 +53,14 @@ function initTelegram() {
 // ── Discord Bot ────────────────────────────────────────────────
 let discordBot = null;
 
+async function replyToInteraction(interaction, content) {
+  const payload = { content, ephemeral: true };
+  if (interaction.replied || interaction.deferred) {
+    return interaction.followUp(payload);
+  }
+  return interaction.reply(payload);
+}
+
 function initDiscord() {
   if (!process.env.DISCORD_BOT_TOKEN) {
     console.warn('[Notifications] No DISCORD_BOT_TOKEN set — Discord Bot DMs disabled');
@@ -74,16 +82,68 @@ function initDiscord() {
     if (interaction.commandName !== 'register') return;
 
     const discordUserId = interaction.user.id;
-    const siteUsername = interaction.options.getString('username');
+    const username = interaction.options.getString('username', true);
+
+    console.log(`[Discord /register] Command received from Discord user ${discordUserId}`);
+    console.log(`[Discord /register] Searching username: ${username}`);
 
     try {
-      const result = await query(
-        `UPDATE users SET discord_user_id = $1
-         WHERE LOWER(username) = LOWER($2)
-         RETURNING username`,
-        [discordUserId, siteUsername]
+      const userResult = await query(
+        `SELECT id, username
+         FROM users
+         WHERE LOWER(username) = LOWER($1)
+         LIMIT 1`,
+        [username]
       );
-      if (result.rowCount > 0) {
+
+      const user = userResult.rows[0];
+      if (!user) {
+        console.log(`[Discord /register] User not found for username: ${username}`);
+        await replyToInteraction(interaction, `No SM CORSE account found for username: ${username}`);
+        return;
+      }
+
+      console.log(`[Discord /register] User found: ${user.id} (${user.username})`);
+
+      await query(
+        'UPDATE users SET discord_user_id = $1 WHERE id = $2',
+        [discordUserId, user.id]
+      );
+      console.log(`[Discord /register] Linked Discord ID ${discordUserId} to user ${user.id}`);
+
+      let dmSent = false;
+      try {
+        await interaction.user.send({
+          embeds: [{
+            title: 'SM CORSE Registration Complete',
+            description:
+              `Your Discord account is now linked to SM CORSE user **${user.username}**.\n\n` +
+              'You can now receive stint, driver-change, fuel, and team alerts.',
+            color: 0x00aaff,
+            timestamp: new Date().toISOString(),
+          }],
+        });
+        dmSent = true;
+        console.log(`[Discord /register] DM sent to Discord user ${discordUserId}`);
+      } catch (dmError) {
+        console.warn(`[Discord /register] DM failed for Discord user ${discordUserId}: ${dmError.message}`);
+      }
+
+      await replyToInteraction(
+        interaction,
+        dmSent
+          ? 'Registration complete. I sent you a DM.'
+          : 'Registration complete, but I could not DM you. Please enable DMs from this server.'
+      );
+      return;
+    } catch (e) {
+      console.error('[Discord /register]', e.message);
+      await replyToInteraction(interaction, 'Registration failed. Please try again.');
+      return;
+    }
+    /*
+    if (false) {
+      if (false) {
         await interaction.reply({
           content: `✅ Linked! You'll now receive iRacing alerts via DM, ${result.rows[0].username}.`,
           ephemeral: true,
@@ -98,6 +158,7 @@ function initDiscord() {
       console.error('[Discord /register]', e.message);
       await interaction.reply({ content: 'Error registering. Try again later.', ephemeral: true });
     }
+    */
   });
 
   client.login(process.env.DISCORD_BOT_TOKEN).catch((e) =>
@@ -327,12 +388,18 @@ async function notifyDriverChange(driverName, driverUser, nextDriver, stintPlanI
 
   // 3. Next driver — get ready
   if (nextDriver) {
+    const expectedLine = stintPlanInfo?.plannedDurationMins
+      ? `\nExpected handoff in about <b>${stintPlanInfo.plannedDurationMins} min</b> based on the adjusted stint plan.`
+      : '';
+    const discordExpectedLine = stintPlanInfo?.plannedDurationMins
+      ? `\nExpected handoff in about **${stintPlanInfo.plannedDurationMins} min** based on the adjusted stint plan.`
+      : '';
     await notifyUser(
       nextDriver,
-      `<b>Heads up, ${nextDriver.username}!</b>\nYou're next in the stint roster. Start getting ready!`,
+      `<b>Heads up, ${nextDriver.username}!</b>\nYou're next in the stint roster. Start getting ready!${expectedLine}`,
       {
         title: 'You\'re Next — Get Ready!',
-        description: 'You\'re next in the stint roster. Start getting strapped in!',
+        description: `You're next in the stint roster. Start getting strapped in!${discordExpectedLine}`,
         color: 0xffa500,
         timestamp,
         footer: { text: 'SM CORSE Enduro Monitor' },
@@ -455,13 +522,15 @@ async function checkUpcomingStints() {
       if (!race.started_at) continue;
 
       const sessionR = await query(
-        'SELECT id, plan FROM stint_planner_sessions WHERE id = $1',
+        'SELECT id, config, plan FROM stint_planner_sessions WHERE id = $1',
         [race.active_stint_session_id]
       );
       if (!sessionR.rows[0]) continue;
 
       const session      = sessionR.rows[0];
-      const teamId       = session.config?.team_id || null;
+      const config       = typeof session.config === 'string' ? JSON.parse(session.config) : (session.config || {});
+      const blockMinutes = Math.max(1, Number(config.min_stint_mins) || 45);
+      const teamId       = config.team_id || null;
       const plan         = Array.isArray(session.plan) ? [...session.plan].map(b => ({ ...b })) : [];
       const currentIndex = race.current_stint_index || 0;
       const raceStartMs  = new Date(race.started_at).getTime();
@@ -473,10 +542,10 @@ async function checkUpcomingStints() {
         if (block.actual_start_at) continue; // already driving
 
         const startBlock = block.startBlock ?? (block.start_hour != null
-          ? Math.round(block.start_hour * 60 / 45) : null);
+          ? Math.round(block.start_hour * 60 / blockMinutes) : null);
         if (startBlock == null) continue;
 
-        const plannedStartMs = raceStartMs + startBlock * 45 * 60 * 1000;
+        const plannedStartMs = raceStartMs + startBlock * blockMinutes * 60 * 1000;
         const minsUntilStart = (plannedStartMs - now) / 60000;
 
         for (const { mins, flag } of ALERT_THRESHOLDS) {

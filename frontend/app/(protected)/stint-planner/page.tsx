@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { stintPlanner as plannerApi, team as teamApi, teams as teamsApi } from '@/lib/api';
 import type { StintPlannerSession, Driver, AvailabilityStatus, AvailabilityMap, Team, TeamMember, StintBlock } from '@/lib/types';
 import { Button } from '@/components/ui/Button';
@@ -13,13 +13,17 @@ const BLOCK_MINUTES = 45;
 const BLOCK_COLORS = ['#0066cc','#00aaff','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6','#f97316','#06b6d4'];
 
 // ── Helpers ──────────────────────────────────────────────────
-function blockToTime(startISO: string | undefined, blockIdx: number): string {
+function getConfiguredBlockMinutes(config?: StintPlannerSession['config'] | null): number {
+  return Math.max(1, config?.min_stint_mins ?? BLOCK_MINUTES);
+}
+
+function blockToTime(startISO: string | undefined, blockIdx: number, blockMinutes: number): string {
   let baseH = 0, baseM = 0;
   if (startISO) {
     const d = new Date(startISO);
     if (!isNaN(d.getTime())) { baseH = d.getHours(); baseM = d.getMinutes(); }
   }
-  const total = baseH * 60 + baseM + blockIdx * BLOCK_MINUTES;
+  const total = baseH * 60 + baseM + blockIdx * blockMinutes;
   return `${String(Math.floor(total / 60) % 24).padStart(2,'0')}:${String(total % 60).padStart(2,'0')}`;
 }
 
@@ -35,6 +39,49 @@ function hourToTime(startISO: string | undefined, hourIdx: number): string {
   }
   const total = baseH * 60 + baseM + hourIdx * 60;
   return `${String(Math.floor(total / 60) % 24).padStart(2,'0')}:${String(total % 60).padStart(2,'0')}`;
+}
+
+function getBrowserTimeZone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Local time';
+}
+
+function toUtcInstantFromSystemClock(localDateTime: string): string | undefined {
+  if (!localDateTime) return undefined;
+  const date = new Date(localDateTime);
+  if (isNaN(date.getTime())) return undefined;
+  return date.toISOString();
+}
+
+function toSystemDateTimeInput(utcInstant: string | undefined, fallbackLocal: string | undefined): string {
+  const source = utcInstant || fallbackLocal;
+  if (!source) return '';
+  const date = new Date(source);
+  if (isNaN(date.getTime())) return fallbackLocal ?? '';
+
+  const y = date.getFullYear();
+  const mo = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  const h = String(date.getHours()).padStart(2, '0');
+  const mi = String(date.getMinutes()).padStart(2, '0');
+  return `${y}-${mo}-${d}T${h}:${mi}`;
+}
+
+function formatHourForSystemTime(startISO: string | undefined, hourIdx: number): string {
+  if (!startISO) return hourToTime(startISO, hourIdx);
+  const start = new Date(startISO);
+  if (isNaN(start.getTime())) return hourToTime(startISO, hourIdx);
+  const instant = new Date(start.getTime() + hourIdx * 3_600_000);
+
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone: getBrowserTimeZone(),
+    }).format(instant);
+  } catch {
+    return hourToTime(startISO, hourIdx);
+  }
 }
 
 function getRaceDates(startStr: string | undefined, durationHours: number): { value: string; label: string }[] {
@@ -84,6 +131,13 @@ interface AvailPeriod {
   fromDate: string; fromHour: number; fromMinute: number;
   toDate:   string; toHour:   number; toMinute:   number;
 }
+
+interface RaceConfigDraft {
+  duration_hours: string;
+  start_time: string;
+  min_stint_mins: string;
+  max_stint_mins: string;
+}
 const defaultPeriod = (): AvailPeriod => ({
   driverId: '', status: 'free',
   fromDate: '', fromHour: 8, fromMinute: 0,
@@ -106,17 +160,18 @@ function AvailabilityOverview({ availability, sessionDrivers, startISO, duration
 }) {
   const totalHours = Math.min(Math.ceil(durationHours), 48);
   const hours = Array.from({ length: totalHours }, (_, i) => i);
+  const systemTimeZone = getBrowserTimeZone();
 
   return (
     <div className="overflow-x-auto">
       <div className="min-w-max">
-        {/* Header row: time labels */}
+        {/* Header row: race-hour labels */}
         <div className="flex items-end mb-1">
           <div className="w-32 flex-shrink-0" />
           {hours.map(h => (
             <div key={h} className="w-10 flex-shrink-0 text-center">
               {h % 3 === 0 ? (
-                <span className="text-[#8892a4] text-[10px] leading-none">{hourToTime(startISO, h)}</span>
+                <span className="text-[#8892a4] text-[10px] leading-none">+{h}h</span>
               ) : (
                 <span className="text-transparent text-[10px]">.</span>
               )}
@@ -126,23 +181,42 @@ function AvailabilityOverview({ availability, sessionDrivers, startISO, duration
 
         {/* Driver rows */}
         {sessionDrivers.map(driver => (
-          <div key={driver.id} className="flex items-center mb-1">
+          <div key={driver.id} className="flex items-center mb-2">
             <div className="w-32 flex-shrink-0 pr-3">
               <span className="text-white text-sm font-semibold truncate block" title={driver.iracing_name || driver.username}>
                 {driver.iracing_name || driver.username}
               </span>
+              <span className="text-[#8892a4] text-[10px] truncate block" title={systemTimeZone}>
+                Your local time
+              </span>
             </div>
-            <div className="flex gap-0.5">
+            <div>
+              <div className="flex gap-0.5 mb-0.5">
+                {hours.map(h => (
+                  <div key={h} className="w-10 flex-shrink-0 text-center">
+                    {h % 3 === 0 ? (
+                      <span className="text-[#8892a4] text-[10px] leading-none">
+                        {formatHourForSystemTime(startISO, h)}
+                      </span>
+                    ) : (
+                      <span className="text-transparent text-[10px]">.</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-0.5">
               {hours.map(h => {
                 const status: AvailabilityStatus = availability[String(driver.id)]?.[String(h)] ?? 'unknown';
+                const localTime = formatHourForSystemTime(startISO, h);
                 return (
                   <div
                     key={h}
                     className={`w-10 h-7 rounded-sm ${AVAIL_COLOR[status]} transition-colors`}
-                    title={`${driver.iracing_name || driver.username} — ${hourToTime(startISO, h)}: ${status === 'unknown' ? 'not set' : status}`}
+                    title={`${driver.iracing_name || driver.username} - ${localTime} ${systemTimeZone}: ${status === 'unknown' ? 'not set' : status}`}
                   />
                 );
               })}
+              </div>
             </div>
           </div>
         ))}
@@ -300,9 +374,10 @@ function DragHandle() {
 }
 
 // ── Stint Card List ───────────────────────────────────────────
-function StintCardList({ plan, startISO, onReorder, onEdit, onDelete }: {
+function StintCardList({ plan, startISO, blockMinutes, onReorder, onEdit, onDelete }: {
   plan: StintBlock[];
   startISO?: string;
+  blockMinutes: number;
   onReorder: (newPlan: StintBlock[]) => void;
   onEdit: (i: number) => void;
   onDelete: (i: number) => void;
@@ -355,11 +430,11 @@ function StintCardList({ plan, startISO, onReorder, onEdit, onDelete }: {
         const start = block.startBlock ?? 0;
         const end = Math.max(start + 1, block.endBlock ?? start + 1);
         const dur = end - start;
-        const durationMins = dur * BLOCK_MINUTES;
+        const durationMins = dur * blockMinutes;
         const name = block.driver_name ?? block.driver ?? '—';
         const color = block.color ?? BLOCK_COLORS[i % BLOCK_COLORS.length];
-        const startTime = blockToTime(startISO, start);
-        const endTime = blockToTime(startISO, end);
+        const startTime = blockToTime(startISO, start, blockMinutes);
+        const endTime = blockToTime(startISO, end, blockMinutes);
         const isDragging = dragIdx === i;
         const isDragOver = dragOverIdx === i && dragIdx !== i;
 
@@ -454,11 +529,12 @@ function StintCardList({ plan, startISO, onReorder, onEdit, onDelete }: {
 }
 
 // ── Block Editor Modal ────────────────────────────────────────
-function BlockEditModal({ open, block, blockIdx, numBlocks, drivers, onSave, onClose }: {
+function BlockEditModal({ open, block, blockIdx, numBlocks, blockMinutes, drivers, onSave, onClose }: {
   open: boolean;
   block: StintBlock | null;
   blockIdx: number;
   numBlocks: number;
+  blockMinutes: number;
   drivers: Driver[];
   onSave: (updated: StintBlock) => void;
   onClose: () => void;
@@ -520,7 +596,7 @@ function BlockEditModal({ open, block, blockIdx, numBlocks, drivers, onSave, onC
           </div>
         </div>
         <p className="text-[#8892a4] text-xs">
-          Duration: <span className="text-white font-semibold">{durBlocks} blocks · {durBlocks * BLOCK_MINUTES} min</span>
+          Duration: <span className="text-white font-semibold">{durBlocks} blocks · {durBlocks * blockMinutes} min</span>
         </p>
         <div className="flex gap-3">
           <Button className="flex-1 justify-center" onClick={() => onSave({ ...block, driver_name: driverName, startBlock, endBlock: Math.max(startBlock + 1, endBlock) })}>
@@ -542,8 +618,15 @@ export default function StintPlannerPage() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [session, setSession] = useState<StintPlannerSession | null>(null);
   const [newSessionName, setNewSessionName] = useState('');
+  const [newSessionTeamId, setNewSessionTeamId] = useState<number | null>(null);
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [raceConfigDraft, setRaceConfigDraft] = useState<RaceConfigDraft>({
+    duration_hours: '',
+    start_time: '',
+    min_stint_mins: '',
+    max_stint_mins: '',
+  });
 
   // Teams + drivers
   const [teamList, setTeamList] = useState<Team[]>([]);
@@ -555,6 +638,7 @@ export default function StintPlannerPage() {
   const [numBlocks, setNumBlocks] = useState(0);
   const [aiPrompt, setAiPrompt] = useState('');
   const [showAiPrompt, setShowAiPrompt] = useState(false);
+  const saveSeqRef = useRef(0);
 
   // Block editor
   const [editingBlockIdx, setEditingBlockIdx] = useState<number | null>(null);
@@ -565,6 +649,35 @@ export default function StintPlannerPage() {
     try { const d = await plannerApi.list(); setSessions(d); } catch {}
   }, []);
 
+  const resolveTeamDriverIds = useCallback(async (teamId: number) => {
+    const [members, drivers] = await Promise.all([
+      teamsApi.members(teamId),
+      teamApi.drivers(),
+    ]);
+
+    setAllDrivers(drivers);
+
+    const matchedIds: number[] = [];
+    members.forEach((m: TeamMember) => {
+      const memberUserId = m.user_id ? Number(m.user_id) : null;
+      const memberDiscordId = m.discord_user_id?.trim().toLowerCase();
+      const memberIRacing = m.iracing_name?.trim().toLowerCase();
+      const memberName = m.name?.trim().toLowerCase();
+
+      const match = drivers.find((d) => {
+        if (memberUserId && d.id === memberUserId) return true;
+        if (memberDiscordId && d.discord_user_id?.trim().toLowerCase() === memberDiscordId) return true;
+        if (memberIRacing && d.iracing_name?.trim().toLowerCase() === memberIRacing) return true;
+        if (memberName && d.username.trim().toLowerCase() === memberName) return true;
+        return false;
+      });
+
+      if (match && !matchedIds.includes(match.id)) matchedIds.push(match.id);
+    });
+
+    return { matchedIds, memberCount: members.length };
+  }, []);
+
   useEffect(() => {
     loadSessions();
     teamApi.drivers().then(setAllDrivers).catch(console.error);
@@ -573,29 +686,70 @@ export default function StintPlannerPage() {
 
   useEffect(() => {
     if (!selectedId) return;
+    const loadSeq = ++saveSeqRef.current;
+    let cancelled = false;
     plannerApi.get(selectedId).then(s => {
+      if (cancelled || loadSeq !== saveSeqRef.current) return;
       setSession(s);
       setExplanation('');
       const dur = s.config?.duration_hours ?? 6;
-      setNumBlocks(Math.ceil((dur * 60) / BLOCK_MINUTES));
+      setNumBlocks(Math.ceil((dur * 60) / getConfiguredBlockMinutes(s.config)));
     }).catch(console.error);
+    return () => { cancelled = true; };
   }, [selectedId]);
 
   // Drivers currently in this session (by selected_drivers IDs)
   const sessionDrivers = session
     ? allDrivers.filter(d => session.config.selected_drivers?.includes(d.id))
     : [];
+  const savedRaceConfigSessionId = session?.id;
+  const savedDurationHours = session?.config.duration_hours;
+  const savedStartTime = session?.config.start_time;
+  const savedStartTimeUtc = session?.config.start_time_utc;
+  const savedMinStintMins = session?.config.min_stint_mins;
+  const savedMaxStintMins = session?.config.max_stint_mins;
+  const savedLocalStartTime = toSystemDateTimeInput(savedStartTimeUtc, savedStartTime);
+  const raceStartInstant = session?.config.start_time_utc || session?.config.start_time;
+  const blockMinutes = getConfiguredBlockMinutes(session?.config);
 
   // ── Session ops ──────────────────────────────────────────
+  useEffect(() => {
+    if (!savedRaceConfigSessionId) {
+      setRaceConfigDraft({
+        duration_hours: '',
+        start_time: '',
+        min_stint_mins: '',
+        max_stint_mins: '',
+      });
+      return;
+    }
+
+    setRaceConfigDraft({
+      duration_hours: savedDurationHours?.toString() ?? '',
+      start_time: savedLocalStartTime,
+      min_stint_mins: savedMinStintMins?.toString() ?? '',
+      max_stint_mins: savedMaxStintMins?.toString() ?? '',
+    });
+  }, [
+    savedRaceConfigSessionId,
+    savedDurationHours,
+    savedStartTime,
+    savedStartTimeUtc,
+    savedLocalStartTime,
+    savedMinStintMins,
+    savedMaxStintMins,
+  ]);
+
   const handleCreateSession = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSessionName.trim()) return;
     setCreating(true);
     try {
-      const s = await plannerApi.create(newSessionName.trim());
+      const s = await plannerApi.create({ name: newSessionName.trim(), team_id: newSessionTeamId });
       setSessions(prev => [s, ...prev]);
       setSelectedId(s.id);
       setNewSessionName('');
+      setNewSessionTeamId(null);
     } catch (e: any) { toast(e.message, 'error'); }
     finally { setCreating(false); }
   };
@@ -612,15 +766,40 @@ export default function StintPlannerPage() {
 
   const saveSession = useCallback(async (updates: Partial<StintPlannerSession>) => {
     if (!selectedId) return;
+    const saveSeq = ++saveSeqRef.current;
     setSaving(true);
     try {
       const updated = await plannerApi.update(selectedId, updates);
-      setSession(updated);
-      const dur = updated.config?.duration_hours ?? 6;
-      setNumBlocks(Math.ceil((dur * 60) / BLOCK_MINUTES));
+      if (saveSeq === saveSeqRef.current) {
+        setSession(updated);
+        const dur = updated.config?.duration_hours ?? 6;
+        setNumBlocks(Math.ceil((dur * 60) / getConfiguredBlockMinutes(updated.config)));
+      }
     } catch (e: any) { toast(e.message, 'error'); }
-    finally { setSaving(false); }
+    finally {
+      if (saveSeq === saveSeqRef.current) setSaving(false);
+    }
   }, [selectedId, toast]);
+
+  useEffect(() => {
+    if (!session?.config.team_id) return;
+    if ((session.config.selected_drivers ?? []).length > 0) return;
+
+    let cancelled = false;
+    resolveTeamDriverIds(session.config.team_id)
+      .then(({ matchedIds }) => {
+        if (cancelled || matchedIds.length === 0) return;
+        const newConfig = { ...session.config, selected_drivers: matchedIds };
+        setSession(s => s ? { ...s, config: newConfig } : null);
+        saveSession({ config: newConfig });
+        toast(`Loaded ${matchedIds.length} driver(s) from team`, 'success');
+      })
+      .catch((e: any) => {
+        if (!cancelled) toast(e.message, 'error');
+      });
+
+    return () => { cancelled = true; };
+  }, [session?.id, session?.config.team_id, resolveTeamDriverIds, saveSession, toast]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateConfig = (key: string, value: unknown) => {
     if (!session) return;
@@ -630,6 +809,71 @@ export default function StintPlannerPage() {
   };
 
   // ── Team auto-select ──────────────────────────────────────
+  const raceConfigDirty = Boolean(session && (
+    raceConfigDraft.duration_hours !== (session.config.duration_hours?.toString() ?? '') ||
+    raceConfigDraft.start_time !== savedLocalStartTime ||
+    raceConfigDraft.min_stint_mins !== (session.config.min_stint_mins?.toString() ?? '') ||
+    raceConfigDraft.max_stint_mins !== (session.config.max_stint_mins?.toString() ?? '')
+  ));
+
+  const updateRaceConfigDraft = (key: keyof RaceConfigDraft, value: string) => {
+    setRaceConfigDraft(current => ({ ...current, [key]: value }));
+  };
+
+  const handleSaveRaceConfig = async () => {
+    if (!selectedId || !session) return;
+
+    const duration = Math.min(48, Math.max(1, parseFloat(raceConfigDraft.duration_hours) || 6));
+    const minStint = Math.max(1, parseInt(raceConfigDraft.min_stint_mins, 10) || BLOCK_MINUTES);
+    const maxStint = Math.max(minStint, parseInt(raceConfigDraft.max_stint_mins, 10) || 180);
+    const startTimeUtc = toUtcInstantFromSystemClock(raceConfigDraft.start_time);
+    const startTimezone = getBrowserTimeZone();
+    const newConfig = {
+      ...session.config,
+      duration_hours: duration,
+      start_time: raceConfigDraft.start_time || undefined,
+      start_time_utc: startTimeUtc,
+      start_timezone: startTimeUtc ? startTimezone : undefined,
+      min_stint_mins: minStint,
+      max_stint_mins: maxStint,
+    };
+
+    setSaving(true);
+    try {
+      const saveSeq = ++saveSeqRef.current;
+      const updated = await plannerApi.update(selectedId, { config: newConfig });
+      if (saveSeq === saveSeqRef.current) {
+        setSession(updated);
+        const dur = updated.config?.duration_hours ?? duration;
+        setNumBlocks(Math.ceil((dur * 60) / getConfiguredBlockMinutes(updated.config)));
+      }
+      toast('Race config saved', 'success');
+    } catch (e: any) {
+      toast(e.message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!selectedId) return;
+
+    const refreshSelectedSession = async () => {
+      if (saving || planning || raceConfigDirty || editingBlockIdx !== null || addingBlock) return;
+      try {
+        const updated = await plannerApi.get(selectedId);
+        setSession(updated);
+        const dur = updated.config?.duration_hours ?? 6;
+        setNumBlocks(Math.ceil((dur * 60) / getConfiguredBlockMinutes(updated.config)));
+      } catch {
+        // Ignore transient polling failures.
+      }
+    };
+
+    const interval = setInterval(refreshSelectedSession, 5000);
+    return () => clearInterval(interval);
+  }, [selectedId, saving, planning, raceConfigDirty, editingBlockIdx, addingBlock]);
+
   const handleSelectTeam = async (teamId: number | '') => {
     if (!session) return;
     if (teamId === '') {
@@ -638,20 +882,14 @@ export default function StintPlannerPage() {
       return;
     }
     try {
-      const members = await teamsApi.members(Number(teamId));
-      // Match team members to registered users by name/iracing_name
-      const matchedIds: number[] = [];
-      members.forEach((m: TeamMember) => {
-        const match = allDrivers.find(d =>
-          (m.iracing_name && d.iracing_name && d.iracing_name.toLowerCase() === m.iracing_name.toLowerCase()) ||
-          d.username.toLowerCase() === m.name.toLowerCase()
-        );
-        if (match) matchedIds.push(match.id);
-      });
+      const { matchedIds, memberCount } = await resolveTeamDriverIds(Number(teamId));
       const newConfig = { ...session.config, selected_drivers: matchedIds, team_id: Number(teamId) };
       setSession(s => s ? { ...s, config: newConfig } : null);
       saveSession({ config: newConfig });
-      toast(`Loaded ${matchedIds.length} driver(s) from team`, matchedIds.length > 0 ? 'success' : 'info');
+      toast(
+        `Loaded ${matchedIds.length}/${memberCount} driver(s) from team`,
+        matchedIds.length > 0 ? 'success' : 'info'
+      );
     } catch (e: any) { toast(e.message, 'error'); }
   };
 
@@ -693,7 +931,7 @@ export default function StintPlannerPage() {
       toast('AI plan generated!', 'success');
     } catch (e: any) {
       // Fallback: even distribution
-      const nb = Math.ceil((durationHours * 60) / BLOCK_MINUTES);
+      const nb = Math.ceil((durationHours * 60) / blockMinutes);
       const drivers = sessionDrivers.length > 0 ? sessionDrivers : allDrivers;
       if (drivers.length === 0) { toast('No drivers selected', 'error'); setPlanning(false); return; }
       const blocksEach = Math.max(1, Math.floor(nb / drivers.length));
@@ -754,7 +992,7 @@ export default function StintPlannerPage() {
     if (addingBlock) {
       const lastBlock = session?.plan?.at(-1);
       const start = lastBlock?.endBlock ?? 0;
-      return { startBlock: start, endBlock: Math.min(start + 4, numBlocks), driver_name: '' };
+      return { startBlock: start, endBlock: Math.min(start + Math.max(1, Math.ceil(60 / blockMinutes)), numBlocks), driver_name: '' };
     }
     if (editingBlockIdx !== null && editingBlockIdx >= 0 && session?.plan) {
       return session.plan[editingBlockIdx] ?? null;
@@ -767,13 +1005,35 @@ export default function StintPlannerPage() {
       {/* ── Sidebar ── */}
       <div className="w-52 flex-shrink-0 flex flex-col gap-3">
         <Card header="Sessions" padding={false}>
-          <form onSubmit={handleCreateSession} className="p-3 border-b border-[#1a2540]">
+          <form onSubmit={handleCreateSession} className="p-3 border-b border-[#1a2540] flex flex-col gap-2">
             <input
               value={newSessionName}
               onChange={e => setNewSessionName(e.target.value)}
               placeholder="Session name…"
-              className="w-full bg-[#0a0f1c] border border-[#1a2540] rounded px-2 py-1.5 text-white text-sm placeholder-[#8892a4] focus:outline-none focus:border-[#0066cc] mb-2"
+              className="w-full bg-[#0a0f1c] border border-[#1a2540] rounded px-2 py-1.5 text-white text-sm placeholder-[#8892a4] focus:outline-none focus:border-[#0066cc]"
             />
+            {teamList.length > 0 && (
+              <div>
+                <select
+                  value={newSessionTeamId ?? ''}
+                  onChange={e => setNewSessionTeamId(e.target.value ? Number(e.target.value) : null)}
+                  className="w-full bg-[#0a0f1c] border border-[#1a2540] rounded px-2 py-1.5 text-sm text-white focus:outline-none focus:border-[#0066cc]"
+                >
+                  <option value="">— Team (optional) —</option>
+                  {teamList.map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+                {newSessionTeamId && (() => {
+                  const t = teamList.find(t => t.id === newSessionTeamId);
+                  return t ? (
+                    <p className={`text-[11px] mt-1 ${t.discord_channel_id ? 'text-green-400' : 'text-[#8892a4]'}`}>
+                      {t.discord_channel_id ? '✓ Discord configured' : 'No Discord channel'}
+                    </p>
+                  ) : null;
+                })()}
+              </div>
+            )}
             <Button type="submit" size="sm" loading={creating} className="w-full justify-center">+ New</Button>
           </form>
           <div className="divide-y divide-[#1a2540]">
@@ -862,8 +1122,8 @@ export default function StintPlannerPage() {
                   <label className="block text-[#8892a4] text-xs mb-1">Duration (hours)</label>
                   <input
                     type="number" step="0.5" min="1" max="48"
-                    value={session.config.duration_hours ?? ''}
-                    onChange={e => updateConfig('duration_hours', parseFloat(e.target.value) || 6)}
+                    value={raceConfigDraft.duration_hours}
+                    onChange={e => updateRaceConfigDraft('duration_hours', e.target.value)}
                     className="w-full bg-[#0a0f1c] border border-[#1a2540] rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-[#0066cc]"
                     placeholder="6"
                   />
@@ -872,17 +1132,20 @@ export default function StintPlannerPage() {
                   <label className="block text-[#8892a4] text-xs mb-1">Start Time</label>
                   <input
                     type="datetime-local"
-                    value={session.config.start_time ?? ''}
-                    onChange={e => updateConfig('start_time', e.target.value)}
+                    value={raceConfigDraft.start_time}
+                    onChange={e => updateRaceConfigDraft('start_time', e.target.value)}
                     className="w-full bg-[#0a0f1c] border border-[#1a2540] rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-[#0066cc]"
                   />
+                  <p className="text-[#8892a4] text-[10px] mt-1">
+                    Saved using your system clock: {getBrowserTimeZone()}
+                  </p>
                 </div>
                 <div>
                   <label className="block text-[#8892a4] text-xs mb-1">Min Stint (min)</label>
                   <input
-                    type="number" step="15" min="15"
-                    value={session.config.min_stint_mins ?? ''}
-                    onChange={e => updateConfig('min_stint_mins', parseInt(e.target.value))}
+                    type="number" step="5" min="1"
+                    value={raceConfigDraft.min_stint_mins}
+                    onChange={e => updateRaceConfigDraft('min_stint_mins', e.target.value)}
                     className="w-full bg-[#0a0f1c] border border-[#1a2540] rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-[#0066cc]"
                     placeholder="45"
                   />
@@ -890,19 +1153,28 @@ export default function StintPlannerPage() {
                 <div>
                   <label className="block text-[#8892a4] text-xs mb-1">Max Stint (min)</label>
                   <input
-                    type="number" step="15" min="15"
-                    value={session.config.max_stint_mins ?? ''}
-                    onChange={e => updateConfig('max_stint_mins', parseInt(e.target.value))}
+                    type="number" step="5" min="1"
+                    value={raceConfigDraft.max_stint_mins}
+                    onChange={e => updateRaceConfigDraft('max_stint_mins', e.target.value)}
                     className="w-full bg-[#0a0f1c] border border-[#1a2540] rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-[#0066cc]"
                     placeholder="180"
                   />
                 </div>
               </div>
-              <div className="mt-3 pt-3 border-t border-[#1a2540]">
+              <div className="mt-3 pt-3 border-t border-[#1a2540] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <p className="text-[#8892a4] text-xs">
-                  Plan uses <span className="text-white font-semibold">45-minute blocks</span> ·{' '}
+                  Plan uses <span className="text-white font-semibold">{blockMinutes}-minute blocks</span> ·{' '}
                   <span className="text-white font-semibold">{numBlocks} blocks</span> total ({durationHours}h)
+                  {raceConfigDirty && <span className="text-yellow-400 ml-2">Unsaved config changes</span>}
                 </p>
+                <Button
+                  size="sm"
+                  onClick={handleSaveRaceConfig}
+                  loading={saving}
+                  disabled={!raceConfigDirty}
+                >
+                  Save Race Config
+                </Button>
               </div>
             </Card>
 
@@ -922,6 +1194,14 @@ export default function StintPlannerPage() {
                       <option key={t.id} value={t.id}>{t.name} ({t.member_count} members)</option>
                     ))}
                   </select>
+                  {session.config.team_id && (() => {
+                    const selectedTeam = teamList.find(t => t.id === session.config.team_id);
+                    return selectedTeam ? (
+                      <p className={`text-xs mt-1.5 ${selectedTeam.discord_channel_id ? 'text-green-400' : 'text-[#8892a4]'}`}>
+                        {selectedTeam.discord_channel_id ? '✓ Discord configured' : 'No Discord channel configured'}
+                      </p>
+                    ) : null;
+                  })()}
                 </div>
               )}
 
@@ -967,7 +1247,7 @@ export default function StintPlannerPage() {
                     <AvailabilityOverview
                       availability={session.availability}
                       sessionDrivers={sessionDrivers}
-                      startISO={session.config.start_time}
+                      startISO={raceStartInstant}
                       durationHours={durationHours}
                     />
                   )}
@@ -980,13 +1260,13 @@ export default function StintPlannerPage() {
               <Card header="Add Your Availability" padding={false}>
                 <div className="p-4">
                   <p className="text-[#8892a4] text-xs mb-4">
-                    Select periods when each driver is available. Times are shown in your local timezone.
+                    Select periods when each driver is available. Times are saved against race hours and shown in local time in the overview.
                   </p>
                   <AvailabilityFormCard
                     key={session.id}
                     sessionDrivers={sessionDrivers}
-                    raceDates={getRaceDates(session.config.start_time, durationHours)}
-                    raceStartStr={session.config.start_time}
+                    raceDates={getRaceDates(raceStartInstant, durationHours)}
+                    raceStartStr={raceStartInstant}
                     onSave={handleSaveAvailPeriod}
                   />
                 </div>
@@ -1016,7 +1296,8 @@ export default function StintPlannerPage() {
 
                   <StintCardList
                     plan={session.plan}
-                    startISO={session.config.start_time}
+                    startISO={raceStartInstant}
+                    blockMinutes={blockMinutes}
                     onReorder={handleReorderPlan}
                     onEdit={i => { setEditingBlockIdx(i); setAddingBlock(false); }}
                     onDelete={handleDeletePlanBlock}
@@ -1046,6 +1327,7 @@ export default function StintPlannerPage() {
         block={editingBlock}
         blockIdx={editingBlockIdx ?? -1}
         numBlocks={numBlocks || 1}
+        blockMinutes={blockMinutes}
         drivers={sessionDrivers}
         onSave={handleSavePlanBlock}
         onClose={() => { setEditingBlockIdx(null); setAddingBlock(false); }}

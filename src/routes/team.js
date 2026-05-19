@@ -5,7 +5,7 @@ const fs = require('fs');
 const axios = require('axios');
 const bcrypt = require('bcryptjs');
 const { authenticateToken } = require('../middleware/auth');
-const { query } = require('../config/database');
+const { query, transaction } = require('../config/database');
 
 const router = express.Router();
 
@@ -47,21 +47,21 @@ router.get('/members', authenticateToken, async (req, res) => {
 // Add a team member
 router.post('/members', authenticateToken, async (req, res) => {
   try {
-    const { name, role, iracing_id, irating, safety_rating, preferred_car, linked_user_id } = req.body;
+    const { name, role, iracing_name, irating, safety_rating, preferred_car, linked_user_id } = req.body;
 
     if (!name || !name.trim()) {
       return res.status(400).json({ error: 'Name is required' });
     }
 
     const result = await query(
-      `INSERT INTO team_members (user_id, name, role, iracing_id, irating, safety_rating, preferred_car)
+      `INSERT INTO team_members (user_id, name, role, iracing_name, irating, safety_rating, preferred_car)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
       [
         linked_user_id || req.user.id,
         name.trim(),
         role || 'Driver',
-        iracing_id || null,
+        iracing_name || null,
         parseInt(irating) || 0,
         parseFloat(safety_rating) || 0,
         preferred_car || null
@@ -78,17 +78,17 @@ router.post('/members', authenticateToken, async (req, res) => {
 // Update a team member
 router.put('/members/:id', authenticateToken, async (req, res) => {
   try {
-    const { name, role, iracing_id, irating, safety_rating, preferred_car } = req.body;
+    const { name, role, iracing_name, irating, safety_rating, preferred_car } = req.body;
 
     const result = await query(
       `UPDATE team_members
-       SET name = $1, role = $2, iracing_id = $3, irating = $4, safety_rating = $5, preferred_car = $6, updated_at = NOW()
+       SET name = $1, role = $2, iracing_name = $3, irating = $4, safety_rating = $5, preferred_car = $6, updated_at = NOW()
        WHERE id = $7
        RETURNING *`,
       [
         name,
         role || 'Driver',
-        iracing_id || null,
+        iracing_name || null,
         parseInt(irating) || 0,
         parseFloat(safety_rating) || 0,
         preferred_car || null,
@@ -133,7 +133,7 @@ router.get('/profile', authenticateToken, async (req, res) => {
   try {
     const result = await query(
       `SELECT id, username, iracing_name, iracing_id,
-              telegram_chat_id, discord_user_id, discord_username, discord_webhook, avatar_url
+              telegram_chat_id, discord_user_id, discord_webhook, avatar_url
        FROM users WHERE id = $1`,
       [req.user.id]
     );
@@ -147,19 +147,18 @@ router.get('/profile', authenticateToken, async (req, res) => {
 
 // PATCH /api/team/profile — update profile fields
 router.patch('/profile', authenticateToken, async (req, res) => {
-  const { iracing_name, iracing_id, discord_username, discord_webhook, telegram_chat_id, discord_user_id } = req.body;
+  const { iracing_name, iracing_id, discord_webhook, telegram_chat_id, discord_user_id } = req.body;
   try {
     const result = await query(
       `UPDATE users
        SET iracing_name     = COALESCE($1, iracing_name),
            iracing_id       = COALESCE($2, iracing_id),
-           discord_username = COALESCE($3, discord_username),
-           discord_webhook  = COALESCE($4, discord_webhook),
-           telegram_chat_id = COALESCE($5, telegram_chat_id),
-           discord_user_id  = COALESCE($6, discord_user_id)
-       WHERE id = $7
-       RETURNING id, username, iracing_name, iracing_id, discord_username, discord_webhook, telegram_chat_id, discord_user_id, avatar_url`,
-      [iracing_name || null, iracing_id || null, discord_username || null, discord_webhook || null, telegram_chat_id || null, discord_user_id || null, req.user.id]
+           discord_webhook  = COALESCE($3, discord_webhook),
+           telegram_chat_id = COALESCE($4, telegram_chat_id),
+           discord_user_id  = COALESCE($5, discord_user_id)
+       WHERE id = $6
+       RETURNING id, username, iracing_name, iracing_id, discord_webhook, telegram_chat_id, discord_user_id, avatar_url`,
+      [iracing_name || null, iracing_id || null, discord_webhook || null, telegram_chat_id || null, discord_user_id || null, req.user.id]
     );
     res.json(result.rows[0]);
   } catch (error) {
@@ -263,7 +262,7 @@ router.post('/register-discord', authenticateToken, async (req, res) => {
 router.get('/drivers', authenticateToken, async (req, res) => {
   try {
     const result = await query(
-      `SELECT id, username, iracing_name, avatar_url,
+      `SELECT id, username, email, iracing_name, avatar_url, discord_user_id, telegram_chat_id,
               (telegram_chat_id IS NOT NULL) AS has_telegram,
               (discord_user_id IS NOT NULL)  AS has_discord
        FROM users WHERE is_active = TRUE ORDER BY username`
@@ -280,6 +279,7 @@ router.get('/drivers', authenticateToken, async (req, res) => {
 // GET /api/team/stint-sessions — list all sessions (visible to whole team)
 router.get('/stint-sessions', authenticateToken, async (req, res) => {
   try {
+    res.set('Cache-Control', 'no-store');
     const result = await query(
       `SELECT ss.id, ss.name, ss.config, ss.availability, ss.plan,
               ss.created_at, ss.updated_at,
@@ -297,14 +297,15 @@ router.get('/stint-sessions', authenticateToken, async (req, res) => {
 
 // POST /api/team/stint-sessions — create a new session
 router.post('/stint-sessions', authenticateToken, async (req, res) => {
-  const { name } = req.body;
+  const { name, team_id } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: 'name required' });
   try {
+    const config = team_id ? JSON.stringify({ team_id: parseInt(team_id, 10) }) : '{}';
     const result = await query(
       `INSERT INTO stint_planner_sessions (name, created_by, config, availability, plan)
-       VALUES ($1, $2, '{}', '{}', '[]')
+       VALUES ($1, $2, $3::jsonb, '{}', '[]')
        RETURNING *`,
-      [name.trim(), req.user.id]
+      [name.trim(), req.user.id, config]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -316,6 +317,7 @@ router.post('/stint-sessions', authenticateToken, async (req, res) => {
 // GET /api/team/stint-sessions/:id — get one session
 router.get('/stint-sessions/:id', authenticateToken, async (req, res) => {
   try {
+    res.set('Cache-Control', 'no-store');
     const result = await query(
       `SELECT ss.*, u.username AS created_by_name
        FROM stint_planner_sessions ss
@@ -363,10 +365,29 @@ router.put('/stint-sessions/:id', authenticateToken, async (req, res) => {
 // DELETE /api/team/stint-sessions/:id — delete session (any user)
 router.delete('/stint-sessions/:id', authenticateToken, async (req, res) => {
   try {
-    const result = await query(
-      'DELETE FROM stint_planner_sessions WHERE id = $1 RETURNING id',
-      [req.params.id]
-    );
+    const result = await transaction(async (client) => {
+      await client.query(
+        `UPDATE race_state
+         SET current_stint_index = 0,
+             stint_started_at = NULL
+         WHERE race_id IN (
+           SELECT id FROM races WHERE active_stint_session_id = $1
+         )`,
+        [req.params.id]
+      );
+
+      await client.query(
+        `UPDATE races
+         SET active_stint_session_id = NULL
+         WHERE active_stint_session_id = $1`,
+        [req.params.id]
+      );
+
+      return client.query(
+        'DELETE FROM stint_planner_sessions WHERE id = $1 RETURNING id',
+        [req.params.id]
+      );
+    });
     if (result.rowCount === 0) return res.status(404).json({ error: 'Session not found' });
     res.json({ ok: true });
   } catch (err) {
@@ -382,7 +403,6 @@ router.post('/stint-planner/ai-plan', authenticateToken, async (req, res) => {
   const { session_id, userPrompt } = req.body;
   if (!session_id) return res.status(400).json({ error: 'session_id required' });
 
-  const BLOCK_MINUTES = 45;
   const OLLAMA_HOST  = process.env.OLLAMA_HOST  || 'http://23.141.136.111:11434';
   const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.3:70b-instruct-q4_K_M';
 
@@ -405,9 +425,11 @@ router.post('/stint-planner/ai-plan', authenticateToken, async (req, res) => {
     const availability = typeof sess.availability === 'string' ? JSON.parse(sess.availability) : sess.availability;
 
     const durationHours = config.duration_hours || 6;
-    const numBlocks = Math.ceil((durationHours * 60) / BLOCK_MINUTES);
-    const minStintBlocks = Math.max(1, Math.ceil((config.min_stint_mins || 45) / BLOCK_MINUTES));
-    const maxStintBlocks = Math.max(minStintBlocks, Math.floor((config.max_stint_mins || 180) / BLOCK_MINUTES));
+    const blockMinutes = Math.max(1, Number(config.min_stint_mins) || 45);
+    const raceStart = config.start_time_utc || config.start_time;
+    const numBlocks = Math.ceil((durationHours * 60) / blockMinutes);
+    const minStintBlocks = Math.max(1, Math.ceil((config.min_stint_mins || blockMinutes) / blockMinutes));
+    const maxStintBlocks = Math.max(minStintBlocks, Math.floor((config.max_stint_mins || 180) / blockMinutes));
 
     // Resolve driver names from selected_drivers user IDs
     const selectedIds = config.selected_drivers || [];
@@ -427,16 +449,16 @@ router.post('/stint-planner/ai-plan', authenticateToken, async (req, res) => {
       const name = driverMap[uid] || `User${uid}`;
       const dAvail = availability[String(uid)] || {};
       const slots = Array.from({ length: numBlocks }, (_, bi) => {
-        const hourIdx = Math.floor((bi * BLOCK_MINUTES) / 60);
+        const hourIdx = Math.floor((bi * blockMinutes) / 60);
         const status = dAvail[String(hourIdx)] || 'unknown';
         const icon = status === 'free' ? 'FREE' : status === 'inconvenient' ? 'INCONV' : status === 'unavailable' ? 'UNAVAIL' : '?';
-        return `B${bi}(${toHHMM(config.start_time, bi * BLOCK_MINUTES)}):${icon}`;
+        return `B${bi}(${toHHMM(raceStart, bi * blockMinutes)}):${icon}`;
       }).join(' ');
       return `  ${name}: ${slots}`;
     }).join('\n');
 
     const blockRef = Array.from({ length: numBlocks }, (_, i) =>
-      `B${i}=${toHHMM(config.start_time, i * BLOCK_MINUTES)}`
+      `B${i}=${toHHMM(raceStart, i * blockMinutes)}`
     ).join(', ');
 
     const systemPrompt = `You are an expert endurance race strategist creating optimal driver stint schedules. Respond ONLY with valid JSON — no markdown, no preamble, no explanation outside the JSON.`;
@@ -444,9 +466,9 @@ router.post('/stint-planner/ai-plan', authenticateToken, async (req, res) => {
     const userMessage = [
       userPrompt ? `User notes: ${userPrompt}\n` : '',
       `Race: ${config.race_name || 'Endurance Race'}`,
-      `Start: ${config.start_time || 'TBD'} | Duration: ${durationHours}h`,
-      `Block size: ${BLOCK_MINUTES}min | Total blocks: ${numBlocks}`,
-      `Stint length: ${minStintBlocks}–${maxStintBlocks} blocks (${minStintBlocks * BLOCK_MINUTES}–${maxStintBlocks * BLOCK_MINUTES} min)`,
+      `Start: ${raceStart || 'TBD'} | Duration: ${durationHours}h`,
+      `Block size: ${blockMinutes}min | Total blocks: ${numBlocks}`,
+      `Stint length: ${minStintBlocks}–${maxStintBlocks} blocks (${minStintBlocks * blockMinutes}–${maxStintBlocks * blockMinutes} min)`,
       `Drivers: ${driverNames.join(', ')}`,
       ``,
       `Availability (FREE=available, INCONV=inconvenient, UNAVAIL=not available, ?=unknown):`,
@@ -506,8 +528,8 @@ router.post('/stint-planner/ai-plan', authenticateToken, async (req, res) => {
         driver_name: block.driver,
         startBlock: sb,
         endBlock: eb,
-        startTime: block.startTime || toHHMM(config.start_time, sb * BLOCK_MINUTES),
-        endTime: block.endTime || toHHMM(config.start_time, eb * BLOCK_MINUTES),
+        startTime: block.startTime || toHHMM(raceStart, sb * blockMinutes),
+        endTime: block.endTime || toHHMM(raceStart, eb * blockMinutes),
         color: driverColorMap[block.driver],
       };
     });
@@ -515,7 +537,7 @@ router.post('/stint-planner/ai-plan', authenticateToken, async (req, res) => {
     // Save plan back to session
     await query('UPDATE stint_planner_sessions SET plan=$1, updated_at=NOW() WHERE id=$2', [JSON.stringify(plan), session_id]);
 
-    res.json({ plan, explanation: parsed.explanation || '', blockMinutes: BLOCK_MINUTES, numBlocks });
+    res.json({ plan, explanation: parsed.explanation || '', blockMinutes, numBlocks });
   } catch (e) {
     console.error('AI stint plan error:', e.message);
     res.status(500).json({ error: 'AI planning failed: ' + e.message });

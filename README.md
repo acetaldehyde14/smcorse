@@ -1,6 +1,6 @@
 # SM CORSE — iRacing Endurance Team Platform
 
-Web platform for the **SM CORSE** iRacing endurance racing team. Covers live race tracking, telemetry analysis, AI coaching, deterministic lap coaching with voice cues, stint planning, and team management. Supports both iRacing and Le Mans Ultimate (LMU).
+Web platform for the **SM CORSE** iRacing endurance racing team. Covers live race tracking, telemetry analysis, AI coaching, deterministic lap coaching with voice cues, car setup sharing, stint planning, and team management. Supports both iRacing and Le Mans Ultimate (LMU).
 
 ---
 
@@ -10,10 +10,12 @@ Web platform for the **SM CORSE** iRacing endurance racing team. Covers live rac
 |---|---|---|
 | API server | Node.js + Express | 3000 |
 | Web frontend | Next.js 14 (App Router, TypeScript, Tailwind) | 3001 |
-| Database | PostgreSQL | 5432 |
+| Database | PostgreSQL 16 | 5432 |
 | Reverse proxy | Nginx | 80 |
 
 Nginx routes `/api/*` to Express and everything else to Next.js. Both processes are managed by PM2.
+
+> **Production rule:** never run `npm run dev` while PM2 is active — both compete for port 3000. Use PM2 exclusively in production. To restart cleanly: `pm2 stop all && pm2 start ecosystem.config.js`
 
 ```
 smcorse/
@@ -22,7 +24,8 @@ smcorse/
 │   ├── config/                # DB pool, NVIDIA AI client
 │   ├── middleware/             # Auth (session + JWT), file upload
 │   ├── routes/                # telemetry, analysis, library, assistant,
-│   │                          #   races, iracing, team, coaching
+│   │                          #   races, iracing, team, teams, coaching,
+│   │                          #   setups, downloads
 │   └── services/
 │       ├── coaching/           # Reference builder, zone detector, lap summary,
 │       │                       #   observation analyzer, voice cue catalog,
@@ -33,14 +36,15 @@ smcorse/
 │   ├── app/(protected)/       # Authenticated pages
 │   ├── components/            # UI + telemetry trace components
 │   ├── lib/                   # API client, auth context, types
-│   └── store/                 # Zustand (telemetry cursor state)
+│   ├── store/                 # Zustand (telemetry cursor state)
+│   └── e2e/                   # Playwright end-to-end tests
 ├── public/
-│   ├── assistant.html         # AI Race Engineer chat (legacy HTML)
 │   ├── coaching-voice/        # Pre-synthesized WAV coaching cues
 │   └── lap-analysis.html      # Standalone JWT-auth lap analysis tool
-├── migrations/                # Numbered SQL migrations (001–009)
+├── migrations/                # Numbered SQL migrations (001–013)
+├── tests/                     # Jest integration tests
 ├── scripts/                   # DB utilities, voice pack builder
-└── uploads/                   # Telemetry files (ibt, blap, olap)
+└── uploads/                   # Telemetry files (ibt, blap, olap) + setups
 ```
 
 ---
@@ -69,7 +73,7 @@ smcorse/
 
 ### AI Coaching
 - Compare two laps and get written coaching feedback via NVIDIA NIM (GLM 5.1 / MiniMax M2.7)
-- AI Race Engineer chat (`/assistant.html`) with iRacing + LMU knowledge and DuckDuckGo web search
+- AI Race Engineer chat with iRacing + LMU knowledge and DuckDuckGo web search
 - Model selector — switch between available NVIDIA NIM models per conversation
 - Lap feature extraction: smoothness score, consistency score, brake zones, lift count
 
@@ -93,11 +97,18 @@ Full per-lap coaching pipeline designed for desktop client integration. All deci
 
 **Voice pack**: pre-synthesized WAV files via NVIDIA Magpie TTS, stored in `public/coaching-voice/`. Built ahead of time — not generated at runtime. The desktop app plays cues locally using the manifest.
 
+### Car Setups
+- Admin-only upload of iRacing `.sto` setup files (5 MB cap, extension-validated)
+- All authenticated users can browse and download setups
+- Filterable by track and car
+- Path-traversal guard on all file downloads
+
 ### Team & Planning
-- Team roster management
+- Multi-team management with Discord channel/role configuration per team
+- Team member roster with iRating, safety rating, and notification links
 - Stint planner with driver availability grid, Gantt chart, and AI-generated plan
 - Race calendar with countdown timers
-- Notification settings (Telegram chat ID, Discord webhook)
+- Per-user notification settings (Telegram chat ID, Discord webhook)
 
 ### Desktop Client
 The Python desktop client is maintained in a separate repository: [endurotool](https://github.com/acetaldehyde14/endurotool). It polls iRacing memory-mapped data and streams telemetry to this API.
@@ -108,8 +119,7 @@ The Python desktop client is maintained in a separate repository: [endurotool](h
 
 ### Prerequisites
 - Node.js 18+
-- PostgreSQL 14+
-- Python 3.10+ (desktop client only)
+- PostgreSQL 16
 - Nginx (production)
 
 ### 1. Install dependencies
@@ -164,6 +174,8 @@ psql -U postgres -d iracing_coach -f iracing-coach/database/schema.sql
 npm run db:migrate
 ```
 
+Migrations 001–013 are applied automatically in order. The runner tracks applied files in a `migrations_log` table.
+
 ### 4. Run in development
 
 ```bash
@@ -174,11 +186,24 @@ cd frontend && npm run dev   # Next.js on :3001
 ### 5. Run in production (PM2)
 
 ```bash
+cd frontend && npm run build   # build Next.js first
 pm2 start ecosystem.config.js
 cd C:\nginx && nginx
 ```
 
-### 6. Build coaching voice pack (optional)
+After any code change: rebuild Next.js, then `pm2 restart all`. Do **not** run `npm run dev` alongside PM2.
+
+### 6. Set admin flag
+
+Upload access on `/setups` is restricted to admin users. To grant admin:
+
+```sql
+UPDATE users SET is_admin = true WHERE username = 'your_username';
+```
+
+Then log out and back in for the session to pick up the change.
+
+### 7. Build coaching voice pack (optional)
 
 Synthesizes all coaching cue WAV files via NVIDIA Magpie TTS. Run once after setup, and again whenever the cue catalog changes.
 
@@ -199,7 +224,7 @@ node scripts/build-coaching-voice-pack.js --force   # regenerate all
 | POST | `/api/auth/login` | JWT login (desktop client) |
 | POST | `/api/auth/validate` | Validate JWT token |
 | POST | `/api/logout` | Destroy session |
-| GET  | `/api/user` | Current user info |
+| GET  | `/api/user` | Current user info (includes `is_admin`) |
 
 ### Telemetry
 | Method | Path | Description |
@@ -220,11 +245,14 @@ node scripts/build-coaching-voice-pack.js --force   # regenerate all
 | GET  | `/api/races` | List races |
 | POST | `/api/races` | Create race |
 | GET  | `/api/races/active` | Active race |
+| GET  | `/api/races/events` | Race calendar events |
+| POST | `/api/races/events` | Create calendar event |
+| DELETE | `/api/races/events/:id` | Delete calendar event |
 | POST | `/api/races/:id/start` | Start race |
 | POST | `/api/races/:id/end` | End race |
 | GET  | `/api/races/:id/roster` | Stint roster |
 | POST | `/api/races/:id/roster` | Replace roster |
-| GET  | `/api/races/:id/events` | Event log |
+| GET  | `/api/races/:id/events` | Race event log |
 
 ### iRacing (desktop client)
 | Method | Path | Description |
@@ -233,13 +261,30 @@ node scripts/build-coaching-voice-pack.js --force   # regenerate all
 | POST | `/api/iracing/telemetry` | Compressed telemetry batch |
 | GET  | `/api/iracing/status` | Current driver + fuel level |
 
-### Team
+### Teams
 | Method | Path | Description |
 |---|---|---|
-| GET/POST/PUT/DELETE | `/api/team/members` | Team roster CRUD |
-| GET/PATCH | `/api/team/profile` | Notification settings |
+| GET  | `/api/teams` | List all teams |
+| POST | `/api/teams` | Create team |
+| PATCH | `/api/teams/:id` | Update team settings |
+| DELETE | `/api/teams/:id` | Delete team |
+| GET  | `/api/teams/:id/members` | List team members |
+| POST | `/api/teams/:id/members` | Add team member |
+| PATCH | `/api/teams/:id/members/:memberId` | Update member |
+| DELETE | `/api/teams/:id/members/:memberId` | Remove member |
+| POST | `/api/teams/:id/discord/test` | Send test Discord alert |
+| GET/PATCH | `/api/team/profile` | User notification settings |
 | POST | `/api/team/register-telegram` | Link Telegram |
 | POST | `/api/team/register-discord` | Link Discord |
+| GET  | `/api/team/drivers` | Registered users list (for roster dropdowns) |
+
+### Setups
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET  | `/api/setups` | All users | List setups (`?track=&car=` filters) |
+| POST | `/api/setups` | Admin only | Upload `.sto` setup file |
+| GET  | `/api/setups/:id/download` | All users | Download setup file |
+| DELETE | `/api/setups/:id` | Admin only | Delete setup |
 
 ### AI Assistant
 | Method | Path | Description |
@@ -272,7 +317,7 @@ node scripts/build-coaching-voice-pack.js --force   # regenerate all
 ### Core tables
 | Table | Purpose |
 |---|---|
-| `users` | Auth + iRacing/Telegram/Discord profiles |
+| `users` | Auth + iRacing/Telegram/Discord profiles, `is_admin` flag |
 | `sessions` | Practice sessions (file upload or live) |
 | `laps` | Individual lap records |
 | `telemetry_frames` | Per-frame telemetry — canonical analytics source |
@@ -289,6 +334,17 @@ node scripts/build-coaching-voice-pack.js --force   # regenerate all
 | `iracing_events` | Live events from desktop client |
 | `race_state` | Current driver, fuel level, position |
 | `race_laps` | Individual race lap records |
+
+### Team tables
+| Table | Purpose |
+|---|---|
+| `teams` | Team records with Discord channel/role config |
+| `team_members` | Members per team with iRating, safety rating, notification links |
+
+### Setup tables
+| Table | Purpose |
+|---|---|
+| `car_setups` | Uploaded `.sto` setup files — track, car, label, notes, file path |
 
 ### Dimension tables
 | Table | Purpose |
@@ -353,14 +409,15 @@ Reload after changes: `cd C:\nginx && nginx -s reload`
 
 ## Development Notes
 
-- **Dual auth**: web pages use `express-session` cookies; desktop client and `/lap-analysis.html` use JWT Bearer tokens (90-day expiry)
-- **Rate limiting**: `/api/telemetry/live` and `/api/iracing/telemetry` allow 1200 req/min; all other `/api/` routes allow 300 req/min
-- **File uploads**: max 50 MB, stored in `uploads/ibt/`, `uploads/blap/`, `uploads/olap/`
-- **AI responses**: NVIDIA NIM (MiniMax M2.7 default) — expect 15–60 s for complex responses. `<think>` blocks are stripped before delivery.
+- **Dual auth**: web pages use `express-session` cookies; desktop client and `/lap-analysis.html` use JWT Bearer tokens (90-day expiry). Both are handled by a single `authenticateToken` middleware that tries session first, then falls back to JWT.
+- **Rate limiting**: telemetry/iracing endpoints allow 3000 req/min; all other `/api/` routes allow 600 req/min
+- **File uploads**: telemetry max 50 MB (`uploads/ibt/`, `uploads/blap/`, `uploads/olap/`); setup files max 5 MB (`uploads/setups/`), `.sto` only
+- **AI responses**: NVIDIA NIM (GLM 5.1 default) — expect 15–60 s for complex responses. `<think>` blocks are stripped before delivery.
 - **Health check**: `/api/assistant/health` result is cached 5 minutes server-side to avoid rate-limit exhaustion
-- **Coaching zones**: deterministic only — no LLM involved in zone detection, observation analysis, or lap summaries. LLM extension point exists in `lapSummary.js`
+- **Coaching zones**: deterministic only — no LLM involved in zone detection, observation analysis, or lap summaries
 - **Voice assets**: WAV files are synthesized ahead of time. Do not design for per-corner runtime synthesis.
 - **Track map**: built via `yaw_rate` + speed double-integration with linear loop-closure correction when GPS (`CarIdxX`/`Y`) is unavailable
+- **Admin access**: `is_admin` column on `users` table. Currently gates setup file uploads. Set via direct SQL — no UI provisioning.
 
 ---
 
@@ -368,7 +425,7 @@ Reload after changes: `cd C:\nginx && nginx -s reload`
 
 | Script | Purpose |
 |---|---|
-| `scripts/run-migrations.js` | Apply numbered migrations (001–009) |
+| `scripts/run-migrations.js` | Apply numbered migrations (001–013) |
 | `scripts/build-coaching-voice-pack.js` | Synthesize all coaching WAV files via NVIDIA TTS |
 | `scripts/migrate-users.js` | One-time SQLite → PostgreSQL migration |
 | `scripts/cleanup-sessions.js` | Remove sessions with bad track names |

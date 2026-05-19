@@ -13,6 +13,16 @@ const FUEL_UPDATE_DEBOUNCE_MS = 8000;
 const CLIENT_ACTIVE_WINDOW_MS = 20000; // 20s without an event = client considered inactive
 const RAD_TO_DEG = 180 / Math.PI;
 
+function parseTelemetryNumber(value) {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'string') {
+    const parsed = Number.parseFloat(value.trim().replace(/s$/i, ''));
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
 // ── Live-session helpers (for telemetry_frames pipeline) ──────────
 
 async function findOrCreateLiveSession(userId, trackName, carName) {
@@ -120,14 +130,10 @@ router.post('/event', authenticateToken, async (req, res) => {
   if (!event || !data) return res.status(400).json({ error: 'event and data required' });
 
   try {
-    // Get active race
-    const raceResult = await query(
-      'SELECT * FROM races WHERE is_active = TRUE LIMIT 1'
-    );
-    if (raceResult.rowCount === 0) {
+    const race = await resolveActiveRaceForEvent(data, req.user.id);
+    if (!race) {
       return res.status(200).json({ ok: true, skipped: 'no_active_race' });
     }
-    const race = raceResult.rows[0];
 
     if (event === 'driver_change') {
       // Driver changes accepted from any client — existing name dedup prevents duplicates
@@ -155,17 +161,84 @@ router.post('/event', authenticateToken, async (req, res) => {
   }
 });
 
+async function resolveActiveRaceForEvent(data, reportingUserId) {
+  const racesResult = await query(
+    `SELECT *
+     FROM races
+     WHERE is_active = TRUE
+     ORDER BY (active_stint_session_id IS NOT NULL) DESC, started_at DESC, id DESC`
+  );
+  const races = racesResult.rows;
+  if (races.length === 0) return null;
+
+  const candidateUserIds = new Set();
+  if (reportingUserId) candidateUserIds.add(Number(reportingUserId));
+
+  if (data?.driver_name || data?.driver_id) {
+    const driverResult = await query(
+      `SELECT id
+       FROM users
+       WHERE LOWER(iracing_name) = LOWER($1)
+          OR LOWER(username) = LOWER($1)
+          OR iracing_id = $2
+       LIMIT 1`,
+      [data.driver_name || '', data.driver_id || '']
+    );
+    if (driverResult.rows[0]?.id) candidateUserIds.add(Number(driverResult.rows[0].id));
+  }
+
+  if (candidateUserIds.size > 0) {
+    const sessionsResult = await query(
+      `SELECT id, name, config
+       FROM stint_planner_sessions
+       WHERE jsonb_array_length(COALESCE(plan, '[]'::jsonb)) > 0
+       ORDER BY updated_at DESC`
+    );
+
+    const matchingSession = sessionsResult.rows.find((session) => {
+      const config = typeof session.config === 'string' ? JSON.parse(session.config) : (session.config || {});
+      const selectedDrivers = Array.isArray(config.selected_drivers) ? config.selected_drivers.map(Number) : [];
+      return selectedDrivers.some((id) => candidateUserIds.has(id));
+    });
+
+    if (matchingSession) {
+      const linkedRace = races.find((race) => Number(race.active_stint_session_id) === Number(matchingSession.id));
+      if (linkedRace) return linkedRace;
+
+      const unlinkedRace = races.find((race) => !race.active_stint_session_id) || races[0];
+      const updatedRaceResult = await query(
+        'UPDATE races SET active_stint_session_id = $1 WHERE id = $2 RETURNING *',
+        [matchingSession.id, unlinkedRace.id]
+      );
+      await query(
+        `UPDATE race_state
+         SET current_stint_index = COALESCE(current_stint_index, 0)
+         WHERE race_id = $1`,
+        [unlinkedRace.id]
+      );
+      console.log(`[iRacing event] Auto-linked active race ${unlinkedRace.id} (${unlinkedRace.name}) to stint session ${matchingSession.id} (${matchingSession.name})`);
+      return updatedRaceResult.rows[0] || unlinkedRace;
+    }
+  }
+
+  return races[0];
+}
+
 async function handleDriverChange(race, data, reportingUserId) {
   const { driver_name, driver_id, session_time } = data;
   if (!driver_name) return;
 
   // Dedup: only process if driver actually changed
   const stateResult = await query(
-    'SELECT current_driver_name FROM race_state WHERE race_id = $1',
+    'SELECT current_driver_name, last_event_at FROM race_state WHERE race_id = $1',
     [race.id]
   );
   const state = stateResult.rows[0];
-  if (state && state.current_driver_name === driver_name) return;
+  if (state && state.current_driver_name === driver_name) {
+    if (!race.active_stint_session_id) return;
+    const lastEventMs = state.last_event_at ? new Date(state.last_event_at).getTime() : 0;
+    if (lastEventMs && Date.now() - lastEventMs < 2 * 60 * 1000) return;
+  }
 
   // Advance the stint plan (updates current_stint_index, stint_started_at, current_driver_name)
   const stintPlanInfo = await advanceStintPlan(race, driver_name, race.id);
@@ -217,18 +290,32 @@ async function handleDriverChange(race, data, reportingUserId) {
     );
   }
 
-  // Get next driver in roster
-  const nextDriverResult = await query(
-    `SELECT sr.*, u.username, u.telegram_chat_id, u.discord_user_id, u.discord_webhook
-     FROM stint_roster sr
-     JOIN users u ON u.id = sr.driver_user_id
-     WHERE sr.race_id = $1
-       AND sr.actual_start_session_time IS NULL
-     ORDER BY sr.stint_order ASC
-     LIMIT 1`,
-    [race.id]
-  );
-  const nextDriver = nextDriverResult.rows[0] || null;
+  // Get next driver from adjusted stint plan first, then roster fallback.
+  let nextDriver = null;
+  if (stintPlanInfo?.nextNextDriverName) {
+    const planNextResult = await query(
+      `SELECT *
+       FROM users
+       WHERE LOWER(iracing_name) = LOWER($1) OR LOWER(username) = LOWER($1)
+       LIMIT 1`,
+      [stintPlanInfo.nextNextDriverName]
+    );
+    nextDriver = planNextResult.rows[0] || null;
+  }
+
+  if (!nextDriver) {
+    const nextDriverResult = await query(
+      `SELECT sr.*, u.username, u.telegram_chat_id, u.discord_user_id, u.discord_webhook
+       FROM stint_roster sr
+       JOIN users u ON u.id = sr.driver_user_id
+       WHERE sr.race_id = $1
+         AND sr.actual_start_session_time IS NULL
+       ORDER BY sr.stint_order ASC
+       LIMIT 1`,
+      [race.id]
+    );
+    nextDriver = nextDriverResult.rows[0] || null;
+  }
 
   console.log(`[Driver Change] Race ${race.id}: ${driver_name} is now in the car`);
   const teamId = await getTeamIdForRace(race.id);
@@ -242,7 +329,11 @@ async function handleDriverChange(race, data, reportingUserId) {
 
 async function handleFuelUpdate(race, data, reportingUserId) {
   const { fuel_level, fuel_pct, mins_remaining, session_time } = data;
-  if (fuel_level === undefined) return;
+  const fuelLevel = parseTelemetryNumber(fuel_level);
+  const fuelPct = parseTelemetryNumber(fuel_pct);
+  const minsRemaining = parseTelemetryNumber(mins_remaining);
+  const sessionTime = parseTelemetryNumber(session_time);
+  if (fuelLevel === null) return;
 
   // Debounce: only write to DB if last fuel event was >8s ago
   const lastResult = await query(
@@ -259,19 +350,19 @@ async function handleFuelUpdate(race, data, reportingUserId) {
   // Log fuel event
   await query(
     `INSERT INTO iracing_events
-       (event_type, race_id, fuel_level, fuel_pct, mins_remaining, session_time, reported_by_user_id)
+     (event_type, race_id, fuel_level, fuel_pct, mins_remaining, session_time, reported_by_user_id)
      VALUES ('fuel_update', $1, $2, $3, $4, $5, $6)`,
-    [race.id, fuel_level, fuel_pct, mins_remaining, session_time, reportingUserId]
+    [race.id, fuelLevel, fuelPct, minsRemaining, sessionTime, reportingUserId]
   );
 
   // Update race state with latest fuel
   await query(
     'UPDATE race_state SET last_fuel_level = $1, last_event_at = NOW() WHERE race_id = $2',
-    [fuel_level, race.id]
+    [fuelLevel, race.id]
   );
 
   // Low fuel alert
-  if (mins_remaining && mins_remaining <= LOW_FUEL_MINS) {
+  if (minsRemaining && minsRemaining <= LOW_FUEL_MINS) {
     const stateResult = await query(
       'SELECT low_fuel_notified FROM race_state WHERE race_id = $1',
       [race.id]
@@ -295,9 +386,9 @@ async function handleFuelUpdate(race, data, reportingUserId) {
       );
       const nextDriver = nextDriverResult.rows[0] || null;
 
-      console.log(`[Low Fuel] Race ${race.id}: ~${Math.round(mins_remaining)} mins remaining`);
+      console.log(`[Low Fuel] Race ${race.id}: ~${Math.round(minsRemaining)} mins remaining`);
       const teamId = await getTeamIdForRace(race.id);
-      await notifyLowFuel(mins_remaining, fuel_level, nextDriver, teamId);
+      await notifyLowFuel(minsRemaining, fuelLevel, nextDriver, teamId);
     }
   }
 }
@@ -308,6 +399,15 @@ async function handlePositionUpdate(race, data) {
     laps_completed, last_lap_time, best_lap_time, nearby_cars, session_time,
   } = data;
   if (!position) return;
+  const racePosition = parseTelemetryNumber(position);
+  const classPosition = parseTelemetryNumber(class_position);
+  const gapToLeader = parseTelemetryNumber(gap_to_leader);
+  const gapAhead = parseTelemetryNumber(gap_ahead);
+  const gapBehind = parseTelemetryNumber(gap_behind);
+  const lapsCompleted = parseTelemetryNumber(laps_completed);
+  const lastLapTime = parseTelemetryNumber(last_lap_time);
+  const bestLapTime = parseTelemetryNumber(best_lap_time);
+  const sessionTime = parseTelemetryNumber(session_time);
 
   // Read previous state to detect lap completion
   const prevR = await query(
@@ -330,16 +430,16 @@ async function handlePositionUpdate(race, data) {
        last_event_at   = NOW()
      WHERE race_id = $10`,
     [
-      position, class_position ?? null, gap_to_leader ?? null,
-      gap_ahead ?? null, gap_behind ?? null, laps_completed ?? null,
-      last_lap_time ?? null, best_lap_time ?? null,
+      racePosition, classPosition, gapToLeader,
+      gapAhead, gapBehind, lapsCompleted,
+      lastLapTime, bestLapTime,
       JSON.stringify(nearby_cars ?? []), race.id,
     ]
   );
 
   // Detect new lap: last_lap_time changed to a valid positive value
   const prevLap = prev.last_lap_time ? parseFloat(prev.last_lap_time) : null;
-  if (last_lap_time && last_lap_time > 0 && last_lap_time !== prevLap) {
+  if (lastLapTime && lastLapTime > 0 && lastLapTime !== prevLap) {
     const driverName = prev.current_driver_name || null;
     let driverUserId = null;
     if (driverName) {
@@ -352,9 +452,9 @@ async function handlePositionUpdate(race, data) {
     await query(
       `INSERT INTO race_laps (race_id, lap_number, driver_name, driver_user_id, lap_time, session_time)
        VALUES ($1, $2, $3, $4, $5, $6)`,
-      [race.id, laps_completed ?? null, driverName, driverUserId, last_lap_time, session_time ?? null]
+      [race.id, lapsCompleted, driverName, driverUserId, lastLapTime, sessionTime]
     );
-    console.log(`[Laps] Race ${race.id}: Lap ${laps_completed} — ${driverName} — ${last_lap_time.toFixed(3)}s`);
+    console.log(`[Laps] Race ${race.id}: Lap ${lapsCompleted} - ${driverName} - ${lastLapTime.toFixed(3)}s`);
   }
 }
 

@@ -182,6 +182,7 @@ export default function TeamPage() {
 
   // Registered users for dropdown
   const [registeredUsers, setRegisteredUsers] = useState<Driver[]>([]);
+  const [registeredUsersLoading, setRegisteredUsersLoading] = useState(false);
 
   // Member modal state
   const [modalOpen, setModalOpen] = useState(false);
@@ -206,9 +207,21 @@ export default function TeamPage() {
     }
   }, [selectedTeamId, toast]);
 
+  const loadRegisteredUsers = useCallback(async () => {
+    setRegisteredUsersLoading(true);
+    try {
+      const users = await teamApi.drivers();
+      setRegisteredUsers(users);
+    } catch (e: any) {
+      toast(e.message || 'Failed to load registered users', 'error');
+    } finally {
+      setRegisteredUsersLoading(false);
+    }
+  }, [toast]);
+
   useEffect(() => {
     loadTeams();
-    teamApi.drivers().then(setRegisteredUsers).catch(console.error);
+    loadRegisteredUsers();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Load members when team changes ────────────────────────────────────────
@@ -347,6 +360,7 @@ export default function TeamPage() {
     setSelectedUserId('');
     setForm({ ...EMPTY_FORM });
     setModalOpen(true);
+    loadRegisteredUsers();
   };
 
   const openEditMember = (m: TeamMember) => {
@@ -373,6 +387,7 @@ export default function TeamPage() {
       ...f,
       name: user.iracing_name || user.username,
       iracing_name: user.iracing_name ?? '',
+      discord_user_id: user.discord_user_id ?? '',
     }));
   };
 
@@ -692,12 +707,15 @@ export default function TeamPage() {
               <select
                 value={selectedUserId}
                 onChange={(e) => handleUserSelect(e.target.value)}
+                disabled={registeredUsersLoading}
                 className="bg-[#0a0f1c] border border-[#1a2540] focus:border-[#0066cc] rounded-lg px-3 py-2 text-white text-sm outline-none transition-colors font-body"
               >
                 <option value="">— Enter manually —</option>
                 {registeredUsers.map((u) => (
                   <option key={u.id} value={String(u.id)}>
                     {u.iracing_name ? `${u.iracing_name} (${u.username})` : u.username}
+                    {u.email ? ` - ${u.email}` : ''}
+                    {u.has_discord ? ' - Discord linked' : ''}
                   </option>
                 ))}
               </select>

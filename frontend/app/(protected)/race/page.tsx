@@ -13,26 +13,30 @@ import { Input, Select } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
 import { useToast } from '@/components/ui/Toast';
 
-const BLOCK_MINS = 45;
+const DEFAULT_BLOCK_MINS = 45;
 
 // ── Helpers ────────────────────────────────────────────────────
 
 function getBlockDriverName(b: StintBlock) {
   return b.driver_name || b.driver || '';
 }
-function getBlockStart(b: StintBlock): number {
+function getConfiguredBlockMinutes(session?: StintPlannerSession | null): number {
+  return Math.max(1, session?.config?.min_stint_mins ?? DEFAULT_BLOCK_MINS);
+}
+
+function getBlockStart(b: StintBlock, blockMins = DEFAULT_BLOCK_MINS): number {
   if (b.startBlock != null) return b.startBlock;
-  if (b.start_hour != null) return Math.round(b.start_hour * 60 / BLOCK_MINS);
+  if (b.start_hour != null) return Math.round(b.start_hour * 60 / blockMins);
   return 0;
 }
-function getBlockEnd(b: StintBlock): number {
+function getBlockEnd(b: StintBlock, blockMins = DEFAULT_BLOCK_MINS): number {
   if (b.endBlock != null) return b.endBlock;
   if (b.start_hour != null && b.duration_hours != null)
-    return Math.round((b.start_hour + b.duration_hours) * 60 / BLOCK_MINS);
+    return Math.round((b.start_hour + b.duration_hours) * 60 / blockMins);
   return 0;
 }
-function blockToClockTime(raceStartedAt: string, blockIdx: number): string {
-  const ms = new Date(raceStartedAt).getTime() + blockIdx * BLOCK_MINS * 60 * 1000;
+function blockToClockTime(raceStartedAt: string, blockIdx: number, blockMins: number): string {
+  const ms = new Date(raceStartedAt).getTime() + blockIdx * blockMins * 60 * 1000;
   return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 function formatTime(iso: string) {
@@ -423,6 +427,7 @@ function StintPlanPanel({ plan, raceStartedAt }: { plan: RaceStintPlan; raceStar
   if (!session) return null;
 
   const blocks: StintBlock[] = Array.isArray(session.plan) ? session.plan : [];
+  const blockMins = getConfiguredBlockMinutes(session);
   const stintElapsedMins = stint_started_at
     ? Math.round((Date.now() - new Date(stint_started_at).getTime()) / 60000)
     : null;
@@ -442,9 +447,9 @@ function StintPlanPanel({ plan, raceStartedAt }: { plan: RaceStintPlan; raceStar
               </p>
             )}
             {(() => {
-              const endBlock = getBlockEnd(blocks[current_index]);
+              const endBlock = getBlockEnd(blocks[current_index], blockMins);
               if (raceStartedAt && endBlock) {
-                const plannedEndMs = new Date(raceStartedAt).getTime() + endBlock * BLOCK_MINS * 60 * 1000;
+                const plannedEndMs = new Date(raceStartedAt).getTime() + endBlock * blockMins * 60 * 1000;
                 const minsLeft = Math.round((plannedEndMs - Date.now()) / 60000);
                 const color = minsLeft < 0 ? 'text-red-400' : minsLeft < 10 ? 'text-yellow-400' : 'text-green-400';
                 return <p className={`text-sm font-semibold ${color}`}>{minsLeft < 0 ? `${Math.abs(minsLeft)}m over` : `${minsLeft}m left`}</p>;
@@ -468,17 +473,17 @@ function StintPlanPanel({ plan, raceStartedAt }: { plan: RaceStintPlan; raceStar
             {blocks.map((block, idx) => {
               const isCurrent = idx === current_index;
               const isDone    = !!(block as any).actual_end_at;
-              const startIdx  = getBlockStart(block);
-              const endIdx    = getBlockEnd(block);
-              const startClock = raceStartedAt && startIdx != null ? blockToClockTime(raceStartedAt, startIdx) : (block.startTime ?? '—');
-              const endClock   = raceStartedAt && endIdx != null   ? blockToClockTime(raceStartedAt, endIdx)   : (block.endTime   ?? '—');
+              const startIdx  = getBlockStart(block, blockMins);
+              const endIdx    = getBlockEnd(block, blockMins);
+              const startClock = raceStartedAt && startIdx != null ? blockToClockTime(raceStartedAt, startIdx, blockMins) : (block.startTime ?? '—');
+              const endClock   = raceStartedAt && endIdx != null   ? blockToClockTime(raceStartedAt, endIdx, blockMins)   : (block.endTime   ?? '—');
               return (
                 <tr key={idx} className={`border-b border-dark-border last:border-0 transition-colors ${isCurrent ? 'bg-[#0066cc]/10' : isDone ? 'opacity-40' : 'hover:bg-white/2'}`}>
                   <td className="px-4 py-2 text-dark-muted">{idx + 1}</td>
                   <td className="px-4 py-2 font-semibold text-white">{getBlockDriverName(block) || '—'}</td>
                   <td className="px-4 py-2 text-dark-muted font-mono text-xs">
                     {startClock} → {endClock}
-                    {endIdx > startIdx && <span className="ml-1 text-dark-muted/60">({(endIdx - startIdx) * BLOCK_MINS}m)</span>}
+                    {endIdx > startIdx && <span className="ml-1 text-dark-muted/60">({(endIdx - startIdx) * blockMins}m)</span>}
                   </td>
                   <td className="px-4 py-2">
                     {isCurrent ? <Badge variant="active">Driving</Badge>
@@ -527,23 +532,26 @@ function RaceDetail({
   const [minsRemaining, setMinsRemaining] = useState('');
   const [pickedSessionId, setPickedSessionId] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
+  const loadSeqRef = useRef(0);
 
   const loadData = useCallback(async () => {
-    const [stateData, eventsData, rosterData] = await Promise.allSettled([
+    const loadSeq = ++loadSeqRef.current;
+    const [stateData, eventsData, rosterData, stintPlanData, lapsData] = await Promise.allSettled([
       racesApi.state(raceId),
       racesApi.events(raceId),
       racesApi.getRoster(raceId),
+      racesApi.getStintPlan(raceId),
+      racesApi.laps(raceId),
     ]);
+
+    if (loadSeq !== loadSeqRef.current) return;
+
     if (stateData.status === 'fulfilled')  setRaceState(stateData.value);
     if (eventsData.status === 'fulfilled') setEvents(eventsData.value);
     if (rosterData.status === 'fulfilled') setRoster(rosterData.value);
-
-    try {
-      setStintPlan(await racesApi.getStintPlan(raceId));
-    } catch (e) { console.error('[StintPlan]', e); }
-    try {
-      setLaps(await racesApi.laps(raceId));
-    } catch (e) { /* not critical */ }
+    if (stintPlanData.status === 'fulfilled') setStintPlan(stintPlanData.value);
+    else console.error('[StintPlan]', stintPlanData.reason);
+    if (lapsData.status === 'fulfilled') setLaps(lapsData.value);
   }, [raceId]);
 
   useEffect(() => {
@@ -721,6 +729,11 @@ function RaceDetail({
                 <div className="flex items-center gap-2">
                   <span className="font-heading font-semibold text-white">Stint Plan</span>
                   {stintPlan?.session && <span className="text-dark-muted text-sm">— {stintPlan.session.name}</span>}
+                  {stintPlan?.session?.updated_at && (
+                    <span className="text-dark-muted text-xs">
+                      #{stintPlan.session.id} updated {timeAgo(stintPlan.session.updated_at)}
+                    </span>
+                  )}
                   {stintPlan?.session && (
                     <Badge variant="active">
                       Stint {(stintPlan.current_index ?? 0) + 1}/{Array.isArray(stintPlan.session.plan) ? stintPlan.session.plan.length : '?'}
@@ -929,14 +942,23 @@ export default function RacePage() {
     } catch (e) { console.error(e); }
   }, []);
 
+  const loadStintSessions = useCallback(async () => {
+    try {
+      setAllSessions(await stintPlanner.list());
+    } catch (e) { console.error(e); }
+  }, []);
+
   useEffect(() => {
     loadRaces();
+    loadStintSessions();
     teamApi.drivers().then(setDrivers).catch(console.error);
-    stintPlanner.list().then(setAllSessions).catch(console.error);
-    // Refresh race list every 10s to update current driver on cards
-    const iv = setInterval(loadRaces, 10000);
+    // Refresh race list and available plans so link picker matches the planner.
+    const iv = setInterval(() => {
+      loadRaces();
+      loadStintSessions();
+    }, 10000);
     return () => clearInterval(iv);
-  }, [loadRaces]);
+  }, [loadRaces, loadStintSessions]);
 
   const handleCreateRace = async (e: React.FormEvent) => {
     e.preventDefault();

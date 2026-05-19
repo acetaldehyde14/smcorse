@@ -239,24 +239,23 @@ export default function SetupsPage() {
         >
           <form onSubmit={handleUpload} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-body text-[#8892a4]">Track *</label>
-              <input
-                required
-                value={form.track_name}
-                onChange={(e) => setForm((f) => ({ ...f, track_name: e.target.value }))}
-                placeholder="e.g. Circuit de Spa-Francorchamps"
-                className="bg-[#0a0f1c] border border-[#1a2540] focus:border-[#0066cc] rounded-lg px-3 py-2 text-white text-sm placeholder-[#8892a4] outline-none transition-colors"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-body text-[#8892a4]">Car *</label>
-              <input
-                required
-                value={form.car_name}
-                onChange={(e) => setForm((f) => ({ ...f, car_name: e.target.value }))}
-                placeholder="e.g. Porsche 992 GT3 R"
-                className="bg-[#0a0f1c] border border-[#1a2540] focus:border-[#0066cc] rounded-lg px-3 py-2 text-white text-sm placeholder-[#8892a4] outline-none transition-colors"
-              />
+              <label className="text-xs font-body text-[#8892a4] uppercase tracking-wider">Track / Car Combination *</label>
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  required
+                  value={form.track_name}
+                  onChange={(e) => setForm((f) => ({ ...f, track_name: e.target.value }))}
+                  placeholder="Track (e.g. Spa)"
+                  className="bg-[#0a0f1c] border border-[#1a2540] focus:border-[#0066cc] rounded-lg px-3 py-2 text-white text-sm placeholder-[#8892a4] outline-none transition-colors"
+                />
+                <input
+                  required
+                  value={form.car_name}
+                  onChange={(e) => setForm((f) => ({ ...f, car_name: e.target.value }))}
+                  placeholder="Car (e.g. Porsche 992)"
+                  className="bg-[#0a0f1c] border border-[#1a2540] focus:border-[#0066cc] rounded-lg px-3 py-2 text-white text-sm placeholder-[#8892a4] outline-none transition-colors"
+                />
+              </div>
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-sm font-body text-[#8892a4]">Label *</label>

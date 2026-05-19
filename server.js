@@ -229,7 +229,7 @@ app.get('/api/user', requireAuth, async (req, res) => {
   try {
     const result = await query(
       `SELECT id, email, username, iracing_id, iracing_rating, telegram_chat_id,
-              discord_user_id, discord_webhook, created_at
+              discord_user_id, discord_webhook, is_admin, created_at
        FROM users
        WHERE id = $1`,
       [req.session.userId]
@@ -289,29 +289,16 @@ app.post('/api/auth/validate', authenticateToken, (req, res) => {
 // TELEMETRY, ANALYSIS & RACE ROUTES
 // ============================================
 
-// Unified auth middleware for API routes — sets req.userId for legacy route compatibility
-const attachUserId = (req, res, next) => {
-  authenticateToken(req, res, () => {
-    req.userId = req.user.id;
-    next();
-  });
-};
-
-app.use('/api/telemetry', attachUserId);
-app.use('/api/analysis', attachUserId);
-app.use('/api/library', attachUserId);
-app.use('/api/assistant', attachUserId);
-
 // Mount routes
-app.use('/api/telemetry', telemetryRoutes);
-app.use('/api/analysis', analysisRoutes);
-app.use('/api/library', libraryRoutes);
-app.use('/api/assistant', assistantRoutes);
+app.use('/api/telemetry', authenticateToken, telemetryRoutes);
+app.use('/api/analysis', authenticateToken, analysisRoutes);
+app.use('/api/library', authenticateToken, libraryRoutes);
+app.use('/api/assistant', authenticateToken, assistantRoutes);
 app.use('/api/team', teamRoutes);
 app.use('/api/teams', teamsRoutes);
 app.use('/api/races', racesRoutes);
 app.use('/api/iracing', iracingRoutes);
-app.use('/api/coaching', attachUserId, coachingRoutes);
+app.use('/api/coaching', authenticateToken, coachingRoutes);
 app.use('/api/downloads', downloadsRoutes);
 app.use('/api/setups', authenticateToken, setupsRoutes);
 
